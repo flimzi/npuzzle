@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script type="module" src="./npuzzle.js"></script>
+    <script type="module" src="./grid.js"></script>
+    <style>
+        body {
+            background: #0f0c29;  /* fallback for old browsers */
+            background: -webkit-linear-gradient(to right, #24243e, #302b63, #0f0c29);  /* Chrome 10-25, Safari 5.1-6 */
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+        }
+
+        .grid {
+            
+            /* technically shouldnt be aproblem but for now simplify */
+            gap: 5px;
+            /* why is the border tripled at the bottom? because the grid does not fill its container fully because the sizes dont match up but whatever */
+            /* its probably some bullshit as always */
+            border: 5px solid black; 
+            /* background-color: black; */
+            height: 100%;
+        }
+
+        [data-tile] {
+            /* background-color: white; */
+        }
+
+        [data-piece] {
+            background-color: red;
+        }
+
+        .test {
+            /* background-color: red; */
+            height: 600px;
+            width: 600px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test">
+
+    </div>
+
+    <br>
+    <br>
+</body>
+<script type="module">
+    // makes it a bitch to debug because symbols are not accessible from console
+    import { PuzzleGrid } from './grid.js'
+    import { EightPuzzle } from './npuzzle.js'
+
+    const grid = new PuzzleGrid(4)
+    window.grid = grid
+    grid.edit = true
+    const $grid = grid.draw()
+
+    window.e1 = new EightPuzzle(4)
+    window.EightPuzzle = EightPuzzle
+
+    $grid.classList.add('grid')
+    document.querySelector('.test').appendChild($grid)
+
+    // potentially important 
+    $grid.addEventListener('mousemove', e => {
+        e.preventDefault()
+    })
+
+    const text = {
+        solve: 'solve',
+        shuffle: 'shuffle',
+        cancel: 'cancel'
+    }
+
+    const solveButton = document.createElement('button')
+    solveButton.innerText = text.solve
+    document.body.appendChild(solveButton)
+    solveButton.addEventListener('click', async e => {
+        const $button = e.currentTarget
+
+        if ($button.innerText === text.solve && grid.edit) {
+            $button.innerText = text.cancel
+            grid.edit = false
+            await grid.solve(() => $button.innerText === text.cancel)
+            grid.edit = true
+            $button.innerText = text.solve
+            return
+        }
+
+        if ($button.innerText === text.cancel) {
+            $button.innerText = text.solve
+        }
+    })
+
+    const shuffleButton = document.createElement('button')
+    shuffleButton.innerText = text.shuffle
+    document.body.appendChild(shuffleButton)
+    shuffleButton.addEventListener('click', async e => {
+        const $button = e.currentTarget
+
+        if ($button.innerText === text.shuffle && grid.edit) {
+            $button.innerText = text.cancel
+            grid.edit = false
+            await grid.randomShuffle(() => $button.innerText === text.cancel)
+            grid.edit = true
+            $button.innerText = text.shuffle
+            return
+        }
+
+        if ($button.innerText === text.cancel) {
+            $button.innerText = text.shuffle
+        }
+    })
+</script>
+</html>

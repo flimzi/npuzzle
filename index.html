@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/js-priority-queue@0.1.5/priority-queue.min.js"></script> -->
+    <script src="./grid.js"></script>
+    <script src="./npuzzle.js"></script>
+</head>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 100px;
+    }
+
+    .grid {
+        display: grid;
+        gap: 1px;
+        border: 1px solid black;
+        background-color: black;
+        /* temporary */
+        height: 300px;
+        width: 300px;   
+    }
+
+    [data-tile] {
+        background-color: white;
+    }
+
+    [data-piece] {
+        background-color: teal;
+        transition: top .2s linear, left .2s linear;
+        font-size: 3em;
+    }
+
+    .grid.setting > [data-piece] {
+        transition: none;
+    }
+
+    .test {
+        width: 100px;
+        height: 100px;
+        background-color: red;
+        position: absolute;
+    }
+
+</style>
+<body>
+    <div class="grid"></div>
+
+    <script>
+        const container = document.querySelector('.grid')
+
+        function createTile(id) {
+            const tile = document.createElement('div')
+            tile.setAttribute('data-tile', id)
+            tile.innerText = id
+
+            return tile
+        }
+        
+        function initGrid(n) {
+            const squareGrid = `repeat(${n}, 1fr)`
+            container.style.gridTemplateColumns = container.style.gridTemplateRows = squareGrid
+
+            return [...Array(n * n).keys()].map(i => createTile(i))
+        }
+
+        const grid = initGrid(3)
+
+        for (const tile of grid)
+            container.appendChild(tile)
+
+        function createPiece(id) {
+            const piece = document.createElement('div')
+            piece.setAttribute('data-piece', id)
+            piece.innerHTML = id
+
+            return piece
+        }
+
+        function initPieces(grid) {
+            for (const tile of grid) {
+                const id = tile.getAttribute('data-tile')
+
+                if (id == 0)
+                    continue
+
+                const piece = createPiece(id)
+                piece.style.position = 'absolute'
+                piece.style.width = tile.clientWidth - 4 + 'px'
+                piece.style.height = tile.clientHeight - 4 + 'px'
+                container.appendChild(piece)
+                movePiece(id, id)
+            }
+        }
+
+        initPieces(grid)
+
+        function movePiece(pieceId, tileId) {
+            const tile = document.querySelector(`[data-tile="${tileId}"]`)
+            const piece = document.querySelector(`[data-piece="${pieceId}"]`)
+
+            if (tile === null)
+                debugger
+
+            const tileRect = tile.getBoundingClientRect()
+
+            piece.style.top = tileRect.top + 2 + 'px'
+            piece.style.left = tileRect.left + 2 + 'px'
+            piece.setAttribute('data-in', tileId)
+
+            return new Promise(r => setTimeout(r, 500))
+        }
+
+        function setPieces(initialState) {
+            container.classList.remove('setting')
+            container.classList.add('setting')
+
+            for (const [tileId, tile] of grid.entries()) {
+                if (initialState[tileId] == 0)
+                    continue
+
+                movePiece(initialState[tileId], tileId)
+            }
+
+            container.classList.remove('setting')
+        }
+
+        async function run() {
+            for (const node of e1.aStarSearch().getPath()) {
+                console.log(e1.print(node.state))
+                debugger
+
+                for (const [tileId, tile] of grid.entries()) {
+                    if (node.state[tileId] == 0)
+                        continue
+
+                    if (document.querySelector(`[data-piece="${node.state[tileId]}"]`).getAttribute('data-in') == tileId)
+                        continue
+
+                    await movePiece(node.state[tileId], tileId)
+                }
+            }  
+        }
+
+        setPieces(e1.initialState)
+        setTimeout(run, 1000)
+
+    </script>
+</body>
+</html>
