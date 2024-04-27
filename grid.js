@@ -6,31 +6,7 @@
 
 // i doubt there is need for this class right now
 import { EightPuzzle, Node } from "./npuzzle.js"
-
-const Direction = {
-    Right: 'Right',
-    Left: 'Left',
-    Up: 'Up',
-    Down: 'Down'
-}
-
-const Axis = {
-    X: 'X',
-    Y: 'Y',
-    Both: 'Both',
-    None: 'None'
-}
-
-export const WorkerMessageType = {
-    Initialization: 'Initialization',
-    Polling: 'Polling',
-    Result: 'Result'
-}
-
-export function WorkerMessage(type, value = null) {
-    this.type = type
-    this.value = value
-}
+import { Direction, Axis, WorkerMessageType } from './interface.js'
 
 class Grid {
     constructor(width, height = null) {
@@ -107,6 +83,10 @@ class DivGrid extends Grid {
         }
 
         this.edit = false
+    }
+
+    tileLoop() {
+        return [...EightPuzzle.tileLoop(this.width, this.height, this.getState())].map(tile => { return { ...tile, val: this.grid[tile.idx] }})
     }
 
     addPiece(tileId = null) {
@@ -459,17 +439,27 @@ class DivGrid extends Grid {
 }
 
 export class PuzzleGrid extends DivGrid {
-    constructor(width, height = null) {
-        super(width, height)
+    constructor(width, height = null, initialState = null) {
+        super(width, height, initialState)
+
+        // does this need to be here or can be in draw?
+        this.setupGrid()
 
         // for (let i = 1; i < this.grid.length; i++)
         //     this.addPiece(i)
 
-        this.addPiece(2)
-        this.goalState = this.getState()
+        // this.addPiece(2)
+        // this.goalState = this.getState()
 
-        if (this.width == 3 && this.height == 3)
-            this.eightPuzzleStates = this.generate8PuzzleStates()
+        // if (this.width == 3 && this.height == 3)
+        //     this.eightPuzzleStates = this.generate8PuzzleStates()
+    }
+
+    setupGrid() {
+        this.initialState.map((val, idx) => { val, idx })
+                         .toSorted((a, b) => a.val - b.val)
+                         .slice(1)
+                         .forEach(({ idx }) => this.addPiece(idx))
     }
 
     async generate8PuzzleStates() {

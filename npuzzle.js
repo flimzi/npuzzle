@@ -26,6 +26,7 @@ export class Node {
         this.parentNode = parentNode
         this.indexToSwapWith0 = indexToSwapWith0
         this.pathCost = pathCost
+        this.depth = 0
     }
 
     // not sure how to write this not-static because im retarded and dont want shit to break rn
@@ -331,9 +332,50 @@ export class EightPuzzle {
         })
     }
 
+    iddfs() {
+        const states = {[this.goalState.toString()]: 0}
+        const node = new Node(this.goalState)
+        let result = null
+
+        for (let depthLimit = 0; result === null; depthLimit++) 
+            result = this.depthLimitedSearch(node, depthLimit, states)
+
+        return result
+    }
+
+    depthLimitedSearch(node, depthLimit, states) {
+        const positions = [0, 3, 7, 11, 12, 14, 14, 15]
+
+        if (node.state.toString() === this.initialState.toString())
+            return node
+
+        if (node.depth === depthLimit)
+            return null
+
+        for (const action of this.actions(node.state)) {
+            const nextNode = new Node(this.result(node.state, action))
+            nextNode.depth = node.depth + 1
+
+            if (haveElementsChangedPlace(node.state, nextNode.state, positions) && !(nextNode.state.toString() in states)) {
+                states[nextNode.state.toString()] = nextNode.depth
+            }
+
+            const result = this.depthLimitedSearch(nextNode, depthLimit, states, start)
+
+            if (result !== null)
+                return result
+        }
+
+        return null
+    }
+
+    // this needs to be done using iddfs (although i dont know if thats true because)
+    // it might be that iterative deepening search that has to run through the whole space
+    // uses the same amount of memory as bfs?
     generate15PuzzleFringeStates() {
         const queue = [this.goalState]
         const states = {[this.goalState.toString()]: 0}
+        const positions = [0, 3, 7, 11, 12, 14, 14, 15]
         let counter = 0
 
         while (queue.length) {
@@ -343,7 +385,7 @@ export class EightPuzzle {
             for (const action of this.actions(state)) {
                 const nextState = this.result(state, action)
 
-                if (!haveElementsChangedPlace(state, nextState))
+                if (!haveElementsChangedPlace(state, nextState, positions))
                     continue
 
                 if (nextState.toString() in states)
@@ -352,8 +394,9 @@ export class EightPuzzle {
                 states[nextState.toString()] = distance + 1
                     queue.push(nextState)
 
-                if (++counter % 10000 === 0) {
-                    console.log(counter)
+                if (++counter % 100000 === 0) {
+                    // console.log(counter)
+                    debugger
                 }
             }
 
@@ -482,5 +525,7 @@ function isSolvable(state) {
 }
 
 function haveElementsChangedPlace(array1, array2, positions) {
-    return array1.every((item, index) => !positions.includes(index) || item === array2[index])
+    return !array1.every((item, index) => !positions.includes(index) || item === array2[index])
 }
+
+window.haveElementsChangedPlace = haveElementsChangedPlace
