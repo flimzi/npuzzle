@@ -8,7 +8,7 @@
 import { EightPuzzle, Node } from "./npuzzle.js"
 import { Direction, Axis, WorkerMessageType } from './interface.js'
 
-class Grid {
+export class Grid {
     constructor(width, height = null) {
         this.width = width
         this.height = height || width
@@ -22,24 +22,28 @@ class Grid {
         }
     }
 
-    actions(cellId) {
-        const cellX = cellId % this.width
-        const cellY = Math.floor(cellId / this.width)
+    static actions(width, height, cellId) {
+        const cellX = cellId % width
+        const cellY = Math.floor(cellId / width)
         const adjacent = []
 
         if (cellX > 0)
             adjacent.push([Direction.Left, cellId - 1])
 
-        if (cellX < this.width - 1)
+        if (cellX < width - 1)
             adjacent.push([Direction.Right, cellId + 1])
 
         if (cellY > 0)
-            adjacent.push([Direction.Up, cellId - this.width])
+            adjacent.push([Direction.Up, cellId - width])
 
-        if (cellY < this.height - 1)
-            adjacent.push([Direction.Down, cellId + this.width])
+        if (cellY < height - 1)
+            adjacent.push([Direction.Down, cellId + width])
 
-        return adjacent.toSorted()
+        return adjacent
+    }
+
+    actions(cellId) {
+        return Grid.actions(this.width, this.height, cellId)
     }
 
     emptyActions(cellId) {
@@ -70,6 +74,7 @@ grid1.grid[1] = 'test'
 // console.log(grid1.emptyActions(0))
 
 // this only works when you set width or height in css
+// need to fix because it sometimes jams when trying to drag with mouse
 class DivGrid extends Grid {
     constructor(width, height = null) {
         super(width, height)
@@ -89,19 +94,19 @@ class DivGrid extends Grid {
         return [...EightPuzzle.tileLoop(this.width, this.height, this.getState())].map(tile => { return { ...tile, val: this.grid[tile.idx] }})
     }
 
-    addPiece(tileId = null) {
+    addPiece(tileId = null, pieceId = null) {
         if (tileId === null)
             tileId = this.grid.findIndex($tile => this.isCellEmpty($tile))
 
         const $piece = document.createElement('div')
-        $piece.pieceId = $piece.tileId = tileId
+        $piece.pieceId = $piece.tileId = pieceId ?? tileId
         $piece.setAttribute('data-piece', $piece.pieceId)
         $piece.setAttribute('data-in', tileId)
         // $piece.setAttribute('draggable', 'true')
         $piece.style.position = 'absolute'
         $piece.style.cursor = 'grab'
         $piece.actions = []
-        $piece.innerText = tileId
+        $piece.innerText = $piece.pieceId
         this.grid[tileId].piece = $piece
 
         $piece.getPlacement = () => {
@@ -198,6 +203,7 @@ class DivGrid extends Grid {
         $piece.style.cursor = window.document.body.style.cursor = 'grabbing'
         $piece.initialRect = e.target.getBoundingClientRect()
         $piece.movement = Axis.None
+        $piece.style.boxShadow = '8px 8px 14px 0px rgba(66, 68, 90, 1)'
         const movePieceWindow = this.movePieceWindowGap($piece)
 
         const movePieceMouseLeaveWindow = e => {
@@ -213,6 +219,7 @@ class DivGrid extends Grid {
             const targetRect = $targetTile.getBoundingClientRect()
             $piece.style.width = targetRect.width + 'px'
             $piece.style.height = targetRect.height + 'px'
+            $piece.style.boxShadow = ''
     
             $piece.style.top = targetRect.top + 'px'
             $piece.style.left = targetRect.left + 'px'
@@ -439,11 +446,11 @@ class DivGrid extends Grid {
 }
 
 export class PuzzleGrid extends DivGrid {
-    constructor(width, height = null, initialState = null) {
-        super(width, height, initialState)
+    constructor(width, height = null, initialState = null, goalState = null) {
+        super(width, height)
 
         // does this need to be here or can be in draw?
-        this.setupGrid()
+        this.setupGrid(width, height, initialState, goalState)
 
         // for (let i = 1; i < this.grid.length; i++)
         //     this.addPiece(i)
@@ -455,11 +462,10 @@ export class PuzzleGrid extends DivGrid {
         //     this.eightPuzzleStates = this.generate8PuzzleStates()
     }
 
-    setupGrid() {
-        this.initialState.map((val, idx) => { val, idx })
-                         .toSorted((a, b) => a.val - b.val)
-                         .slice(1)
-                         .forEach(({ idx }) => this.addPiece(idx))
+    setupGrid(width, height, initialState = null, goalState = null) {
+        // in order for this to be reusable it needs to first get rid of existing pieces (or move them)
+        this.puzzle = new EightPuzzle(width, height, initialState, goalState)
+        this.puzzle.initialState.forEach((val, idx) => val !== 0 && this.addPiece(idx, val))
     }
 
     async generate8PuzzleStates() {
@@ -482,7 +488,6 @@ export class PuzzleGrid extends DivGrid {
                     break;
                 case WorkerMessageType.Result:
                     console.log(Node.path(data.value))
-                    debugger
                     break;
             }
         }
@@ -512,6 +517,17 @@ export class PuzzleGrid extends DivGrid {
 
             return this.movePiece($tile.tileId, state.indexOf($tile.piece.pieceId))
         }
+    }
+
+    async moveToNextStates(states) {
+        for (const state of states)
+            await this.moveToNextState(state)
+    }
+
+    async moveFromEndNode(node) {
+        await this.moveToNextStates(node.getPath().map(n => n.state))
+        
+        // return this.moveToNextStates(node.getPath().map(n => n.state))
     }
 
     async *moveToState(state, states = null) {
@@ -558,7 +574,7 @@ export class PuzzleGrid extends DivGrid {
         // if (this.eightPuzzleStates !== undefined)
         //     states = await this.eightPuzzleStates.then(states => states)
 
-        await this.moveToStateConditionally(this.goalState, condition, states)
+        await this.moveToStateConditionally(this.puzzle.goalState, condition, states)
     }
 
     setPicture() {

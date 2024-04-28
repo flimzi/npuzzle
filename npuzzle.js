@@ -1,3 +1,4 @@
+import { Direction } from "./interface.js";
 
 class PriorityQueue {
     constructor(initialValues, comparator) {

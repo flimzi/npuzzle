@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <script type="module" src="./interface.js"></script>
     <script type="module" src="./npuzzle.js"></script>
     <script type="module" src="./grid.js"></script>
+    <script type="module" src="./manualsolver.js"></script>
     <style>
         body {
             background: #0f0c29;  /* fallback for old browsers */
@@ -51,9 +53,13 @@
     // makes it a bitch to debug because symbols are not accessible from console
     import { PuzzleGrid } from './grid.js'
     import { EightPuzzle } from './npuzzle.js'
+    import * as manual from './manualsolver.js'
+    import * as iface from './interface.js'
 
     const grid = new PuzzleGrid(4)
     window.grid = grid
+    window.manual = manual
+    window.iface = iface
     grid.edit = true
     const $grid = grid.draw()
 
