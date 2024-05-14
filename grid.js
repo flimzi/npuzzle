@@ -244,6 +244,9 @@ class DivGrid extends Grid {
             $piece.actions = []
             $piece.style.cursor = 'grab'
             window.document.body.style.cursor = 'default'
+            // this is an issue because this also gets called when click switch and the target tile is obviously the same as in the beginning because it was just a click
+            // this gets called before movepiece so most of it gets overridden but there is a value that gets mixed up and when mousedown sets actions
+            // it does it wrong
             const $targetTile = $piece.getPlacement().filter(t => t[0].piece === null || t[0].piece === $piece)
                                                      .toSorted((a, b) => b[1] - a[1])[0][0]
     
@@ -253,13 +256,11 @@ class DivGrid extends Grid {
             $piece.style.boxShadow = ''
             $piece.style.zIndex = 1
     
-            console.log('drop', targetRect.top, targetRect.left)
             $piece.style.top = targetRect.top + 'px'
             $piece.style.left = targetRect.left + 'px'
             this.grid[$piece.getAttribute('data-in')].piece = null
             $piece.setAttribute('data-in', $targetTile.tileId)
             $piece.actions = this.emptyActions($targetTile.tileId)
-            console.log($piece.actions)
             $piece.tileId = $targetTile.tileId
             $targetTile.piece = $piece
         }
@@ -471,7 +472,6 @@ class DivGrid extends Grid {
         const grid = this
         const edit = grid.edit
 
-        console.log('move', tileToRect.top, tileToRect.left)
         $piece.style.top = tileToRect.top + 'px'
         $piece.style.left = tileToRect.left + 'px'
         // $piece.style.boxShadow = '8px 8px 14px 0px rgba(66, 68, 90, 1)'
@@ -479,6 +479,7 @@ class DivGrid extends Grid {
         $piece.style.boxShadow = '0px 2px 14px 6px rgba(0, 0, 0, 1)'
         $tileFrom.piece = null
         $tileTo.piece = $piece
+        $piece.tileId = tileToId
         $piece.setAttribute('data-in', tileToId)
         $piece.style.transition = `top ${duration}ms linear, left ${duration}ms linear`
 
