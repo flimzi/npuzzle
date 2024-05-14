@@ -33,6 +33,12 @@
 
         [data-piece] {
             background-color: red;
+            font-size: 2em;
+        }
+
+        /* also not used but we could use it to show which pieces are placed correctly whether manually or procedurally */
+        [data-piece].correct {
+            background-color: green;
         }
 
         /* not used yet */
@@ -69,6 +75,7 @@
     // const grid = new PuzzleGridEndBlank(5, 5, [1, 2, 3, 4, 20, 7, 18, 5, 0, 12, 10, 24, 13, 8, 19, 16, 17, 23, 21, 9, 22, 15, 11, 14, 6])
     // const grid = new PuzzleGridEndBlank(5, 5, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 24, 20, 21, 22, 0, 19, 23])
     // const grid = new PuzzleGridEndBlank(5, 5, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 11, 14, 24, 17, 19, 16, 12, 15, 22, 18, 21, 13, 23, 20, 10])
+    // const grid = new PuzzleGridEndBlank(5, 5, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 0, 21, 22, 23, 19, 24])
     const grid = new PuzzleGridEndBlank(5)
     window.grid = grid
     window.manual = manual

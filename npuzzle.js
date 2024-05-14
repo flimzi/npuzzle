@@ -439,7 +439,16 @@ export class EightPuzzle {
 
     getLayers(state = this.goalState) {
         const state2d = this.get2D(state.map((piece, tile) => [tile, piece]))
-        return iface.range(this.width - 2).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))
+        return iface.range(this.width - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))
+    }
+
+    getCorrectTiles(nodeOrState) {
+        const node = Node.fromNodeOrState(nodeOrState)
+        return Object.keys(this.goalState).filter(tile => this.goalState[tile] === node.state[tile])
+    }
+
+    getCorrectTilesWithout0(nodeOrState) {
+        return this.getCorrectTiles(nodeOrState).filter(tile => nodeOrState[tile] !== 0)
     }
 
     // this probably will not work for anything other than end blank goal state so no need to pass it down
@@ -451,10 +460,14 @@ export class EightPuzzle {
         let node = new Node(this.initialState)
         const solvedTiles = []
 
+        // this is kinda repetitive because you can just subtract 1 from pieceId to get tileId but whatever im not changing it
         for (const [tileId, pieceId] of this.getLayers(EightPuzzle.generateGoalStateEndBlank(this.width, this.height)).flat()) {
-            // add third transformation for the final 2x2 (spin)
-            // this should work if i say node.state here but doesnt really seem to
-            const move = this.searchMovePieceTo(node, pieceId, tileId, solvedTiles) ?? this.findBestRotation(node, pieceId, tileId, solvedTiles)
+            if (node.state[tileId] === pieceId) {
+                solvedTiles.push(tileId)
+                continue
+            }
+
+            const move = this.searchMovePieceTo(node.state, pieceId, tileId, solvedTiles) ?? this.findBestRotation(node.state, pieceId, tileId, solvedTiles)
 
             if (move === null)
                 return null
@@ -473,13 +486,15 @@ export class EightPuzzle {
     }
 
     tryGetSolution() {
-        let solution = null
+        let solution = new Node(this.initialState)
 
         for (const node of this.trySolve()) {
             if (node === null)
                 return null    
         
-            node.parentNode = solution
+            const path = node.getPath()
+            const first = path[1] ?? path[0]
+            first.parentNode = solution
             solution = node
         }
 
@@ -815,17 +830,17 @@ export class EightPuzzle {
         return null
     }
 
-    tryRotate(nodeOrState, tileFrom, tileTo, avoid = []) {
-        const left = this.rotation(nodeOrState, tileFrom, tileTo, avoid)
+    // tryRotate(nodeOrState, tileFrom, tileTo, avoid = []) {
+    //     const left = this.rotation(nodeOrState, tileFrom, tileTo, avoid)
 
-        if (left === null)
-            return null
+    //     if (left === null)
+    //         return null
         
-        // perhaps one can be null without the other in that case only the valid needs to be returned but im not sure if that can happen
-        const right = this.rotation(nodeOrState, tileFrom, tileTo, avoid, true)
+    //     // perhaps one can be null without the other in that case only the valid needs to be returned but im not sure if that can happen
+    //     const right = this.rotation(nodeOrState, tileFrom, tileTo, avoid, true)
 
-        return left.getPath().length < right.getPath().length ? left : right
-    }
+    //     return left.getPath().length < right.getPath().length ? left : right
+    // }
 
     // this fails doing the last tile of last layer because a more sophisticated movement is needed and more testing is needed to see if more cases like this exist
     // i can get it to work allright but im pretty sure there is a case where no rotation can suffice but it should be easily fixable but i need a test case that fails
@@ -840,9 +855,13 @@ export class EightPuzzle {
         const possibleSetups = []
 
         for (const [blankTile, neighbors] of possibleRotations) {
-            // first check if blank is not in avoid
+            if (avoid.includes(blankTile))
+                continue
+
             for (const targetTile of neighbors) {
-                //also check if not int avoid first before search
+                if (avoid.includes(targetTile))
+                    continue
+
                 const movePiece = this.searchMovePieceTo(node, pieceId, targetTile, avoid)
 
                 if (movePiece === null)

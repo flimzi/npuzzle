@@ -590,6 +590,10 @@ export class PuzzleGrid extends DivGrid {
         return new EightPuzzle(this.width, this.height, this.getState(), goal).aStarSearch().getPath()
     }
 
+    isMoveLegal(state) {
+        return new EightPuzzle(this.width, this.height).isMoveLegal(this.getState(), state)
+    }
+
     // seems to be a problem with this?
     moveToNextState(state) {
         for (const $tile of this.grid) {
@@ -601,7 +605,8 @@ export class PuzzleGrid extends DivGrid {
             if ($tile.piece.pieceId === pieceId)
                 continue
 
-            // add ismovelegal
+            if (!this.isMoveLegal(state))
+                throw new Error('illegal grid move')
 
             return this.movePiece($tile.tileId, state.indexOf($tile.piece.pieceId))
         }
