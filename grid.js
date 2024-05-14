@@ -6,7 +6,8 @@
 
 // i doubt there is need for this class right now
 import { EightPuzzle, Node } from "./npuzzle.js"
-import { Direction, Axis, WorkerMessageType } from './interface.js'
+import { Direction, Axis, WorkerMessageType, stateTo2d, offset, getDistance } from './interface.js'
+import { switchBlankWithTile } from './manualsolver.js'
 
 export class Grid {
     constructor(width, height = null) {
@@ -66,6 +67,23 @@ Array.prototype.random = function() {
     return this[Math.floor(Math.random() * this.length)]
 }
 
+Array.prototype.shiftLeft = function() {
+    return this.unshift(this.pop())
+}
+
+Array.prototype.shiftRight = function() {
+    return this.push(this.shift())
+}
+
+Array.prototype.toShiftedLeft = function(times = 1) {
+    const n = times % this.length
+    return this.slice(n).concat(this.slice(0, n))
+}
+
+Array.prototype.toShiftedRight = function(times = 1) {
+    return this.toShiftedLeft(-times)
+}
+
 const grid1 = new Grid(3)
 const grid12d = [...grid1.get2D()]
 
@@ -94,12 +112,19 @@ class DivGrid extends Grid {
         return [...EightPuzzle.tileLoop(this.width, this.height, this.getState())].map(tile => { return { ...tile, val: this.grid[tile.idx] }})
     }
 
+    pieceLoop() {
+        return this.tileLoop().map(({val}) => val.piece).filter(piece => piece !== null)
+    }
+
     addPiece(tileId = null, pieceId = null) {
         if (tileId === null)
             tileId = this.grid.findIndex($tile => this.isCellEmpty($tile))
 
         const $piece = document.createElement('div')
-        $piece.pieceId = $piece.tileId = pieceId ?? tileId
+        $piece.pieceId = pieceId ?? tileId
+        // IMPORTANT CHANGE
+        $piece.tileId = tileId
+        //
         $piece.setAttribute('data-piece', $piece.pieceId)
         $piece.setAttribute('data-in', tileId)
         // $piece.setAttribute('draggable', 'true')
@@ -194,38 +219,47 @@ class DivGrid extends Grid {
         return $grid
     }
 
-    movePieceMouseDown = e => {
+    // remember that there is a addEventListener option ONCE
+    // WHY DID GPT NOT KNOW THIS
+    movePieceMouseDown = eMouseDown => {
         if (!this.edit)
             return
 
-        const $piece = e.currentTarget
-        $piece.actions = this.emptyActions(e.target.tileId)
+        const $piece = eMouseDown.currentTarget
+        $piece.actions = this.emptyActions(eMouseDown.target.tileId)
         $piece.style.cursor = window.document.body.style.cursor = 'grabbing'
-        $piece.initialRect = e.target.getBoundingClientRect()
+        $piece.initialRect = eMouseDown.target.getBoundingClientRect()
         $piece.movement = Axis.None
-        $piece.style.boxShadow = '8px 8px 14px 0px rgba(66, 68, 90, 1)'
-        const movePieceWindow = this.movePieceWindowGap($piece)
+        // somehow make it so that within a couple pixels of the mousedown position, nothing happens
+        // and only if you drag the mouse outside that region should the movement code run
+        // i think maybe the most idiomatic way is to have another listener before the main one that handles this 
+        $piece.style.zIndex = 1000
+
+        const movePieceWindow = this.movePieceWindowGap($piece, eMouseDown)
 
         const movePieceMouseLeaveWindow = e => {
             window.removeEventListener('mousemove', movePieceWindow)
             window.removeEventListener('mouseup', movePieceMouseLeaveWindow)
-    
+
             $piece.actions = []
             $piece.style.cursor = 'grab'
             window.document.body.style.cursor = 'default'
             const $targetTile = $piece.getPlacement().filter(t => t[0].piece === null || t[0].piece === $piece)
-                                                        .toSorted((a, b) => b[1] - a[1])[0][0]
+                                                     .toSorted((a, b) => b[1] - a[1])[0][0]
     
             const targetRect = $targetTile.getBoundingClientRect()
             $piece.style.width = targetRect.width + 'px'
             $piece.style.height = targetRect.height + 'px'
             $piece.style.boxShadow = ''
+            $piece.style.zIndex = 1
     
+            console.log('drop', targetRect.top, targetRect.left)
             $piece.style.top = targetRect.top + 'px'
             $piece.style.left = targetRect.left + 'px'
             this.grid[$piece.getAttribute('data-in')].piece = null
             $piece.setAttribute('data-in', $targetTile.tileId)
             $piece.actions = this.emptyActions($targetTile.tileId)
+            console.log($piece.actions)
             $piece.tileId = $targetTile.tileId
             $targetTile.piece = $piece
         }
@@ -327,15 +361,26 @@ class DivGrid extends Grid {
             }
         }
 
-        console.log(this.gapWidth)
+        // console.log(this.gapWidth)
 
         moveTo(coordinates.current.X + movementX, coordinates.current.Y + movementY)
     }
 
-    movePieceWindowGap = $piece => e => {
-        e.preventDefault()
+    // need to examine this because something happens differently even though the final positions in both move methods are the same
+    movePieceWindowGap = ($piece, eMouseDown) => eMouseMove => {
+        eMouseMove.preventDefault()
 
-        if (e.buttons !== 1) {
+        // stagger
+        if (!eMouseDown.unlocked) {
+            if (getDistance(eMouseDown, eMouseMove) > 5) {
+                eMouseDown.unlocked = true
+                $piece.style.boxShadow = '0px 2px 14px 6px rgba(0, 0, 0, 1)'
+            }
+
+            return
+        }
+
+        if (eMouseMove.buttons !== 1) {
             window.dispatchEvent(new MouseEvent('mouseup'))
             return
         }
@@ -343,7 +388,7 @@ class DivGrid extends Grid {
         const currentRect = $piece.getBoundingClientRect()
         const directions = $piece.actions.map(a => a[0])
         // const directions = []
-        let [movementX, movementY] = [e.movementX, e.movementY]
+        let [movementX, movementY] = [eMouseMove.movementX, eMouseMove.movementY]
         let [finalX, finalY] = [currentRect.x + movementX, currentRect.y + movementY]
 
         const canMove = direction => directions.includes(direction)
@@ -416,6 +461,8 @@ class DivGrid extends Grid {
     }
 
     // unless we narrow the query selector to grid parent element we cannot use queryselector here (we have no handle for the grid div anyway)
+    // this somehow works differently from drag and drop because it fucks up the movements
+    // also might be because mouseup gets executed along with this
     movePiece(tileFromId, tileToId, duration = 50) {
         const $tileFrom = this.grid[tileFromId]
         const $tileTo = this.grid[tileToId]
@@ -424,16 +471,26 @@ class DivGrid extends Grid {
         const grid = this
         const edit = grid.edit
 
+        console.log('move', tileToRect.top, tileToRect.left)
         $piece.style.top = tileToRect.top + 'px'
         $piece.style.left = tileToRect.left + 'px'
+        // $piece.style.boxShadow = '8px 8px 14px 0px rgba(66, 68, 90, 1)'
+        // should be a class or attrbiute obv
+        $piece.style.boxShadow = '0px 2px 14px 6px rgba(0, 0, 0, 1)'
         $tileFrom.piece = null
         $tileTo.piece = $piece
         $piece.setAttribute('data-in', tileToId)
         $piece.style.transition = `top ${duration}ms linear, left ${duration}ms linear`
 
+        // console.log(tileFromId, tileToId)
+        // debugger // remove this to make the application stop working
+        // tileFromId and tileToId are switched whenever the debugger is removed so that probably means there is an issue with async code
+        // but i need to examine the whole process to know more
+        // the process cannot be examined because the presence of the breakpoint makes the application work (whoever invented this bullshit is retarded as fuck)
         return new Promise(r => {
             setTimeout(() => {
                 $piece.style.transition = ''
+                $piece.style.boxShadow = ''
                 grid.edit = edit
                 r()
             }, duration + 50)
@@ -466,6 +523,28 @@ export class PuzzleGrid extends DivGrid {
         // in order for this to be reusable it needs to first get rid of existing pieces (or move them)
         this.puzzle = new EightPuzzle(width, height, initialState, goalState)
         this.puzzle.initialState.forEach((val, idx) => val !== 0 && this.addPiece(idx, val))
+        this.pieceLoop().forEach($piece => this.addClickSwitch($piece))
+    }
+    
+    addClickSwitch($piece) {
+        $piece.addEventListener('mousedown', eMouseDown => {
+            const start = performance.now()
+
+            const mouseUp = async eMouseUp => {
+                // hahahahha
+                await new Promise(r => setTimeout(r, 1))
+                // console.log(performance.now() - start)
+
+                if (performance.now() - start < 100 && Math.abs(eMouseUp.x - eMouseDown.x) < 5 && Math.abs(eMouseUp.y - eMouseDown.y) < 5) {
+                    const result = switchBlankWithTile(this.getState(), this.width, this.height, $piece.tileId)
+                    await this.moveFromEndNode(result)
+                }
+
+                $piece.removeEventListener('mouseup', mouseUp)
+            }
+
+            $piece.addEventListener('mouseup', mouseUp)
+        })
     }
 
     async generate8PuzzleStates() {
@@ -498,6 +577,11 @@ export class PuzzleGrid extends DivGrid {
 
     getState() {
         return this.grid.map(tile => tile.piece !== null ? tile.piece.pieceId : 0)
+        return this.grid.map($tile => $tile.piece?.pieceId ?? 0)
+    }
+
+    getTileFromPiece(pieceId) {
+        return this.grid.find($tile => $tile.piece?.pieceId === pieceId) ?? null
     }
 
     // test this
@@ -505,6 +589,7 @@ export class PuzzleGrid extends DivGrid {
         return new EightPuzzle(this.width, this.height, this.getState(), goal).aStarSearch().getPath()
     }
 
+    // seems to be a problem with this?
     moveToNextState(state) {
         for (const $tile of this.grid) {
             const pieceId = state[$tile.tileId]
@@ -515,17 +600,23 @@ export class PuzzleGrid extends DivGrid {
             if ($tile.piece.pieceId === pieceId)
                 continue
 
+            // add ismovelegal
+
             return this.movePiece($tile.tileId, state.indexOf($tile.piece.pieceId))
         }
     }
 
-    async moveToNextStates(states) {
-        for (const state of states)
+    async moveToNextStates(states, step) {
+        for (const state of states) {
             await this.moveToNextState(state)
+
+            if (step)
+                debugger
+        }
     }
 
-    async moveFromEndNode(node) {
-        await this.moveToNextStates(node.getPath().map(n => n.state))
+    async moveFromEndNode(node, step = false) {
+        await this.moveToNextStates(node.getPath().map(n => n.state), step)
         
         // return this.moveToNextStates(node.getPath().map(n => n.state))
     }
@@ -583,12 +674,16 @@ export class PuzzleGrid extends DivGrid {
         // but from what i can see going to 3x4 the npuzzle logic does not work anymore and just hangs the browser
         // which is why we should offload the computation to a worker i guess or do it asynchronously
     }
+
+    getCorrectTiles(include0 = false) {
+        return this.getState().reduce((correct, piece, tile) => {
+            if (piece === 0 && !include0)
+                return correct
+
+            if (this.puzzle.goalState[tile] === piece)
+                correct.push(tile)
+
+            return correct
+        }, [])
+    }
 }
-
-// would it even be possible to record the costs of moving pieces from the fringe to anywhere on the 4x4 board
-// then use bfs to solve the fringe state and then map the states from the 3x3 space state to the resulting 3x3 puzzle???
-export class ProceduralSolver {
-
-}
-
-// later we could do the same database but for the 8 puzzle that comes up as a result of setting up correct digits in the fringe part of a 15 puzzle
