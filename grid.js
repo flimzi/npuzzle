@@ -263,6 +263,8 @@ class DivGrid extends Grid {
             $piece.actions = this.emptyActions($targetTile.tileId)
             $piece.tileId = $targetTile.tileId
             $targetTile.piece = $piece
+
+            this.updateCorrectness($piece)
         }
 
         window.addEventListener('mousemove', movePieceWindow)
@@ -493,6 +495,7 @@ class DivGrid extends Grid {
                 $piece.style.transition = ''
                 $piece.style.boxShadow = ''
                 grid.edit = edit
+                this.updateCorrectness($piece)
                 r()
             }, duration + 50)
         })
@@ -529,6 +532,9 @@ export class PuzzleGrid extends DivGrid {
     
     addClickSwitch($piece) {
         $piece.addEventListener('mousedown', eMouseDown => {
+            if (eMouseDown.buttons !== 1)
+                return
+
             const start = performance.now()
 
             const mouseUp = async eMouseUp => {
@@ -574,6 +580,14 @@ export class PuzzleGrid extends DivGrid {
 
         worker.postMessage(new WorkerMessage(WorkerMessageType.Initialization, new EightPuzzle(this.width, this.height, this.getState())))
         setInterval(worker.postMessage(new WorkerMessage(WorkerMessageType.Polling)), 10)
+    }
+
+    // this is only a proof of concept and should be handled on a piece-basis because its too expensive
+    updateCorrectness($piece) {
+        const state = this.getState() // this is just so that eightpuzzle constructor doesnt go hardcore mode
+        const correctTiles = new EightPuzzle(this.width, this.height, state, this.puzzle.goalState).getCorrectTilesWithout0(state)
+        // this.pieceLoop().forEach($piece => $piece.classList.toggle('correct', correctTiles.includes($piece.tileId)))
+        $piece.classList.toggle('correct', correctTiles.includes($piece.tileId))
     }
 
     getState() {

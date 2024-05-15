@@ -444,7 +444,7 @@ export class EightPuzzle {
 
     getCorrectTiles(nodeOrState) {
         const node = Node.fromNodeOrState(nodeOrState)
-        return Object.keys(this.goalState).filter(tile => this.goalState[tile] === node.state[tile])
+        return Object.keys(this.goalState).map(Number).filter(tile => this.goalState[tile] === node.state[tile])
     }
 
     getCorrectTilesWithout0(nodeOrState) {
