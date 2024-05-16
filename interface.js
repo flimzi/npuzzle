@@ -63,14 +63,18 @@ export function getDistance(xy1, xy2) {
     return Math.sqrt(Math.pow(xy2.x - xy1.x, 2) + Math.pow(xy2.y - xy1.y, 2));
 }
 
-// only works for square grids now!!!!! (maybe)
-export function getCoordinates(height, index) {
-    // return {
-    //     x: index % height,
-    //     y: Math.floor(index / height)
-    // }
+// only works for square grids now!!!!!
+// export function getCoordinates(height, index) {
+//     // return {
+//     //     x: index % height,
+//     //     y: Math.floor(index / height)
+//     // }
 
-    return xy(index % height, Math.floor(index / height))
+//     return xy(index % height, Math.floor(index / height))
+// }
+
+export function getCoordinates(width, index) {
+    return xy(index % width, Math.floor(index / width))
 }
 
 export function getIndex(x, y, width) {

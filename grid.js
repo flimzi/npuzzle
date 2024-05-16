@@ -183,6 +183,9 @@ class DivGrid extends Grid {
             const verticalGapWidth = (this.height - 1) * this.gapWidth + 2 * this.borderWidth
             const horizontalGapWidth = (this.width - 1) * this.gapWidth + 2 * this.borderWidth
             
+            // this is taking into consideration clientwidth and clientheight for the case when the grid itself is a rectangle
+            // but it doesnt consider this.width and this.height so when the grid is square and width > height it extends outside the grid
+            // so im not really sure how to fix it but it needs to consider this.width and this.height
             const tileSize = $grid.clientWidth < $grid.clientHeight
                 ? ($grid.offsetWidth - horizontalGapWidth) / this.width
                 : ($grid.offsetHeight - verticalGapWidth) / this.height
@@ -519,8 +522,8 @@ export class PuzzleGrid extends DivGrid {
         // this.addPiece(2)
         // this.goalState = this.getState()
 
-        // if (this.width == 3 && this.height == 3)
-        //     this.eightPuzzleStates = this.generate8PuzzleStates()
+        if (this.width == 3 && this.height == 3)
+            this.eightPuzzleStates = this.generate8PuzzleStates()
     }
 
     setupGrid(width, height, initialState = null, goalState = null) {
@@ -528,6 +531,7 @@ export class PuzzleGrid extends DivGrid {
         this.puzzle = new EightPuzzle(width, height, initialState, goalState)
         this.puzzle.initialState.forEach((val, idx) => val !== 0 && this.addPiece(idx, val))
         this.pieceLoop().forEach($piece => this.addClickSwitch($piece))
+        this.updateCorrectnessAll()
     }
     
     addClickSwitch($piece) {
@@ -588,6 +592,12 @@ export class PuzzleGrid extends DivGrid {
         const correctTiles = new EightPuzzle(this.width, this.height, state, this.puzzle.goalState).getCorrectTilesWithout0(state)
         // this.pieceLoop().forEach($piece => $piece.classList.toggle('correct', correctTiles.includes($piece.tileId)))
         $piece.classList.toggle('correct', correctTiles.includes($piece.tileId))
+    }
+
+    updateCorrectnessAll() {
+        const state = this.getState()
+        const correctTiles = new EightPuzzle(this.width, this.height, state, this.puzzle.goalState).getCorrectTilesWithout0(state)
+        this.pieceLoop().forEach($piece => $piece.classList.toggle('correct', correctTiles.includes($piece.tileId)))
     }
 
     getState() {

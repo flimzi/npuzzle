@@ -178,8 +178,7 @@ export class EightPuzzle {
     // }
 
     calculateManhattanDistance(state) {
-        // const startTime = performance.now()
-        debugger
+        // const startTime = performance.now() 
         let totalDistance = 0;
 
         for (let i = 0; i < this.height; i++) {
@@ -193,7 +192,7 @@ export class EightPuzzle {
                 const goalI = Math.floor(goalIndex / this.width);
                 const goalJ = goalIndex % this.width;
                 totalDistance += Math.abs(i - goalI) + Math.abs(j - goalJ);
-                console.log('index: ', i * this.width + j, 'value: ', state[i * this.width + j], 'distance:', Math.abs(i - goalI) + Math.abs(j - goalJ))
+                // console.log('index: ', i * this.width + j, 'value: ', state[i * this.width + j], 'distance:', Math.abs(i - goalI) + Math.abs(j - goalJ))
             }
         }
 
@@ -437,9 +436,27 @@ export class EightPuzzle {
         return iface.range(this.height).map(row => row * this.width).map(start => node.state.slice(start, start + this.width))
     }
 
+    isSquare() {
+        return this.width === this.height
+    }
+
+    // this needs to be adjusted because only works for square grids but from what ive seen you can easily solve rectangular grids using the same technique
+    // getLayers(state = this.goalState) {
+    //     const state2d = this.get2D(state.map((piece, tile) => [tile, piece]))        
+    //     return iface.range(this.width - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))
+    // }
+
+    // also need to write a transformation center but that maybe could be done with css
     getLayers(state = this.goalState) {
         const state2d = this.get2D(state.map((piece, tile) => [tile, piece]))
-        return iface.range(this.width - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))
+
+        if (this.width < this.height)
+            return state2d
+        
+        if (this.height < this.width)
+            return iface.range(this.width).map(col => state2d.map(row => row.slice(col, col + 1)).flat())
+
+        return iface.range(this.width - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))    
     }
 
     getCorrectTiles(nodeOrState) {
@@ -961,40 +978,40 @@ function isSolvable(state) {
     return inversionCount % 2 === 0;
 }
 
-window.isSolvable2 = function isSolvable2(state) {
-    const size = Math.sqrt(state.length); // Assuming the puzzle is a square (e.g., 3x3)
-    let inversions = 0;
-    let blankRowFromBottom;
+// window.isSolvable2 = function isSolvable2(state) {
+//     const size = Math.sqrt(state.length); // Assuming the puzzle is a square (e.g., 3x3)
+//     let inversions = 0;
+//     let blankRowFromBottom;
 
-    // Count inversions
-    for (let i = 0; i < state.length; i++) {
-        for (let j = i + 1; j < state.length; j++) {
-            if (state[i] !== 0 && state[j] !== 0 && state[i] > state[j]) {
-                inversions++;
-            }
-        }
-    }
+//     // Count inversions
+//     for (let i = 0; i < state.length; i++) {
+//         for (let j = i + 1; j < state.length; j++) {
+//             if (state[i] !== 0 && state[j] !== 0 && state[i] > state[j]) {
+//                 inversions++;
+//             }
+//         }
+//     }
 
-    // Find the row of the blank tile (0), counting from the bottom
-    const blankIndex = state.indexOf(0);
-    const blankRow = Math.floor(blankIndex / size);
-    blankRowFromBottom = size - blankRow;
+//     // Find the row of the blank tile (0), counting from the bottom
+//     const blankIndex = state.indexOf(0);
+//     const blankRow = Math.floor(blankIndex / size);
+//     blankRowFromBottom = size - blankRow;
 
-    // Determine solvability
-    if (size % 2 !== 0) {
-        // Odd grid size (e.g., 3x3)
-        return inversions % 2 === 0;
-    } else {
-        // Even grid size
-        return (inversions + blankRowFromBottom) % 2 === 0;
-    }
-}
+//     // Determine solvability
+//     if (size % 2 !== 0) {
+//         // Odd grid size (e.g., 3x3)
+//         return inversions % 2 === 0;
+//     } else {
+//         // Even grid size
+//         return (inversions + blankRowFromBottom) % 2 === 0;
+//     }
+// }
 
 function haveElementsChangedPlace(array1, array2, positions) {
     return !array1.every((item, index) => !positions.includes(index) || item === array2[index])
 }
 
-window.haveElementsChangedPlace = haveElementsChangedPlace
+// window.haveElementsChangedPlace = haveElementsChangedPlace
 
 export class Rotation {
     static create(nodeOrState, width, height, tileFrom, tileTo, avoidPieces = []) {
@@ -1069,5 +1086,9 @@ export class Rotation {
         this.rotateUntil(this.tileTo, this.pieceId, !backwards)
 
         return this.currentNode
+    }
+
+    static testMechanicalSolutions(width, height) {
+
     }
 }
