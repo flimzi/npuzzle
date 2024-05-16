@@ -156,15 +156,28 @@ Array.prototype.compare = function(other) {
     return JSON.stringify(this) === JSON.stringify(other)
 }
 
+Array.range = function(size) {
+    return iface.range(size)
+}
+
+Array.prepend = function(other) {
+    return other.concat(this)
+}
+
+Number.prototype.range = function() {
+    return iface.range(this)
+}
+
 // this should be a generator because stack overflow
 export function range(length) {
     return [...Array(length).keys()]
 }
 
+// doesnt work for rectangle
 export function getNeighbors(width, height, tileId) {
-    const tileXY = getCoordinates(height, tileId)
+    const tileXY = getCoordinates(width, tileId)
     const offsetsToIndexes = offsets => offsets.map(off => offset(tileXY, off))
-                                               .filter(({x, y}) => x >= 0 && y >= 0 && x < height && y < width)
+                                               .filter(({x, y}) => x >= 0 && y >= 0 && x < width && y < height)
                                                .map(({x,y}) => getIndex(x, y, width))
 
     // need to reverse the coordinates because its backwards by default

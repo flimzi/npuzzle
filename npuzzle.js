@@ -264,10 +264,10 @@ export class EightPuzzle {
     }
 
     searchMoveBlankTo(nodeOrState, tileId, avoid = []) {
-        const tile = iface.getCoordinates(this.height, tileId)
+        const tile = iface.getCoordinates(this.width, tileId)
 
         const h = node => {
-            const blank = iface.getCoordinates(this.height, node.state.indexOf(0))
+            const blank = iface.getCoordinates(this.width, node.state.indexOf(0))
             return EightPuzzle.manhattanDistance(blank.x, blank.y, tile.x, tile.y) // + node.pathCost ?
         }
 
@@ -303,10 +303,10 @@ export class EightPuzzle {
 
     getBlankPositions(tileId, distance, direction) {
         const positions = []
-        let xy = iface.getCoordinates(this.height, tileId)
+        let xy = iface.getCoordinates(this.width, tileId)
 
         for (let moved = 0; moved < distance; moved++) {
-            const move = Grid.actions(this.width, this.height, iface.getIndex(xy.x, xy.y, this.width)).find(([dir]) => dir === direction)
+            const move = Grid.actions(this.width, this.width, iface.getIndex(xy.x, xy.y, this.width)).find(([dir]) => dir === direction)
 
             if (move === undefined)
                 return []
@@ -344,10 +344,10 @@ export class EightPuzzle {
     }
 
     searchMovePieceTo(nodeOrState, pieceId, tileTo, avoid = []) {
-        const goal = iface.getCoordinates(this.height, tileTo)
+        const goal = iface.getCoordinates(this.width, tileTo)
 
         const h = node => {
-            const tile = iface.getCoordinates(this.height, node.state.indexOf(pieceId))
+            const tile = iface.getCoordinates(this.width, node.state.indexOf(pieceId))
             return EightPuzzle.manhattanDistance(goal.x, goal.y, tile.x, tile.y) // + node.pathCost ?
         }
 
@@ -440,23 +440,26 @@ export class EightPuzzle {
         return this.width === this.height
     }
 
-    // this needs to be adjusted because only works for square grids but from what ive seen you can easily solve rectangular grids using the same technique
-    // getLayers(state = this.goalState) {
-    //     const state2d = this.get2D(state.map((piece, tile) => [tile, piece]))        
-    //     return iface.range(this.width - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))
-    // }
-
-    // also need to write a transformation center but that maybe could be done with css
+    // only works for square
     getLayers(state = this.goalState) {
+        const state2d = this.get2D(state.map((piece, tile) => [tile, piece]))        
+        return iface.range(this.width - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))
+    }
+
+    // return the extra rows or columns first and then return the layers of a remaining square grid
+    getComponents(state = this.goalState) {
+        let components = []
         const state2d = this.get2D(state.map((piece, tile) => [tile, piece]))
+        const diff = this.width - this.height
+        const squareDimension = Math.min(this.width, this.height)
 
-        if (this.width < this.height)
-            return state2d
-        
-        if (this.height < this.width)
-            return iface.range(this.width).map(col => state2d.map(row => row.slice(col, col + 1)).flat())
+        if (diff < 0)
+            components = state2d.splice(0, Math.abs(diff))
+        else if (diff > 0)
+            components = Math.abs(diff).range().map(col => state2d.map(row => row.splice(0, 1).flat()))
 
-        return iface.range(this.width - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))    
+        const layers = Array.range(squareDimension - 1).map(layer => state2d[layer].slice(layer).concat(state2d.slice(layer + 1).map(row => row[layer])))
+        return components.concat(layers) 
     }
 
     getCorrectTiles(nodeOrState) {
@@ -478,7 +481,7 @@ export class EightPuzzle {
         const solvedTiles = []
 
         // this is kinda repetitive because you can just subtract 1 from pieceId to get tileId but whatever im not changing it
-        for (const [tileId, pieceId] of this.getLayers(EightPuzzle.generateGoalStateEndBlank(this.width, this.height)).flat()) {
+        for (const [tileId, pieceId] of this.getComponents(EightPuzzle.generateGoalStateEndBlank(this.width, this.height)).flat()) {
             if (node.state[tileId] === pieceId) {
                 solvedTiles.push(tileId)
                 continue

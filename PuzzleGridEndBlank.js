@@ -46,7 +46,7 @@ export default class PuzzleGridEndBlank extends PuzzleGrid {
 
     getBlankPositions(tileId, distance, direction, avoid = []) {
         const positions = []
-        let xy = iface.getCoordinates(this.height, tileId)
+        let xy = iface.getCoordinates(this.width, tileId)
 
         for (let moved = 0; moved < distance; moved++) {
             // no real need for avoid here but convenient (unless not)
@@ -74,10 +74,10 @@ export default class PuzzleGridEndBlank extends PuzzleGrid {
         // (which also is the same blank position because the piece is going to move into it)
 
         const puzzle = new EightPuzzle(this.width, this.height, this.getState(), this.puzzle.goalState)
-        const { goalX, goalY } = getCoordinates(this.height, this.width, tileTo)
+        const { goalX, goalY } = getCoordinates(this.width, tileTo)
 
         const h = node => {
-            const { tileX, tileY } = getCoordinates(this.height, this.width, node.state.indexOf(pieceId))
+            const { tileX, tileY } = getCoordinates(this.width, node.state.indexOf(pieceId))
             return EightPuzzle.manhattanDistance(goalX, goalY, tileX, tileY)
         }
 

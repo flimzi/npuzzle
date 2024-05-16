@@ -18,7 +18,7 @@
 
         .grid {
             
-            /* technically shouldnt be aproblem but for now simplify */
+            /* i need to remove the gap entirely from the equation because it doesnt make sense */
             gap: 5px;
             /* why is the border tripled at the bottom? because the grid does not fill its container fully because the sizes dont match up but whatever */
             /* its probably some bullshit as always */
@@ -29,6 +29,7 @@
 
         [data-tile] {
             background-color: #27222c;
+            
         }
 
         [data-piece] {
@@ -36,7 +37,6 @@
             font-size: 2em;
         }
 
-        /* also not used but we could use it to show which pieces are placed correctly whether manually or procedurally */
         [data-piece].correct {
             background-color: green;
         }
@@ -48,8 +48,7 @@
         }
 
         .test {
-            /* background-color: red; */
-            height: 600px;
+            height: 300px;
             width: 600px;
         }
     </style>

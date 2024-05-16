@@ -163,12 +163,12 @@ class DivGrid extends Grid {
         return this.grid.filter(t => !this.isCellEmpty(t)).map(t => [t, t.piece])
     }
 
-    draw(gap = 2) {
+    draw() {
         const $grid = document.createElement('div')
         $grid.style.display = 'grid'
         $grid.style.boxSizing = 'border-box'
 
-        const resizeObserver = new ResizeObserver(entries => {
+        const resizeObserver = new ResizeObserver(async entries => {
             // these operations should probably be postponed whenever an event handler
             // but idk if this even works on resize so
 
@@ -176,9 +176,10 @@ class DivGrid extends Grid {
             //     ? $grid.clientWidth / this.width
             //     : $grid.clientHeight / this.height
 
+            // need to make it so that there is no gap used because it sucks
             const style = window.getComputedStyle($grid)
-            this.borderWidth = parseInt(style.getPropertyValue('border'))
-            this.gapWidth = parseInt(style.getPropertyValue('gap'))
+            this.borderWidth = parseInt(style.getPropertyValue('border')) || 1
+            this.gapWidth = parseInt(style.getPropertyValue('gap')) || 1
             this.gridRect = $grid.getBoundingClientRect()
             const verticalGapWidth = (this.height - 1) * this.gapWidth + 2 * this.borderWidth
             const horizontalGapWidth = (this.width - 1) * this.gapWidth + 2 * this.borderWidth
@@ -186,15 +187,25 @@ class DivGrid extends Grid {
             // this is taking into consideration clientwidth and clientheight for the case when the grid itself is a rectangle
             // but it doesnt consider this.width and this.height so when the grid is square and width > height it extends outside the grid
             // so im not really sure how to fix it but it needs to consider this.width and this.height
-            const tileSize = $grid.clientWidth < $grid.clientHeight
+            const tileSize = $grid.clientWidth < $grid.clientHeight || this.height < this.width
                 ? ($grid.offsetWidth - horizontalGapWidth) / this.width
                 : ($grid.offsetHeight - verticalGapWidth) / this.height
 
             $grid.style.gridTemplateColumns = `repeat(${this.width}, ${tileSize}px)`
             $grid.style.gridTemplateRows = `repeat(${this.height}, ${tileSize}px)`
+            $grid.style.width = $grid.style.height = 'fit-content'
+            $grid.parentElement.style.display = 'flex'
+            $grid.parentElement.style.justifyContent = $grid.parentElement.style.alignItems = 'center'
+
+            // center
+            // $grid.parentElement.style.position = 'relative'
+            // $grid.style.position = 'absolute'
+            // $grid.style.left = `${($grid.parentElement.offsetWidth - $grid.offsetWidth) / 2}px`
+            // $grid.style.top = `${($grid.parentElement.offsetHeight - $grid.offsetHeight) / 2}px`
 
             // set size and position of pieces (nobody knows if this will work)
             for (const [$tile, $piece] of this.filledTiles()) {
+                // something weird happens here that we probably will not work out how to fix (left and top values on the tiles are incorrect)
                 const tileRect = $tile.getBoundingClientRect()
 
                 $piece.style.width = tileRect.width + 'px'
@@ -272,104 +283,6 @@ class DivGrid extends Grid {
 
         window.addEventListener('mousemove', movePieceWindow)
         window.addEventListener('mouseup', movePieceMouseLeaveWindow)
-    }
-
-    movePieceMouseWindow3 = $piece => e => {
-        e.preventDefault()
-
-        if (e.buttons !== 1) {
-            window.dispatchEvent(new MouseEvent('mouseup'))
-            return
-        }
-
-        const pieceRect = $piece.getBoundingClientRect()
-        const directions = $piece.actions.map(a => a[0])
-        let [movementX, movementY] = [e.movementX, e.movementY]
-
-        // not sure if rounding is that good here
-        // const coordinates = {
-        //     initial: { X: Math.round($piece.initialRect.left), Y: Math.round($piece.initialRect.top) },
-        //     current: { X: Math.round(pieceRect.left), Y: Math.round(pieceRect.top) },
-        // }
-
-        // this works better so far because the piece doesnt lock up
-        const coordinates = {
-            initial: { X: $piece.initialRect.left, Y: $piece.initialRect.top },
-            current: { X: pieceRect.left, Y: pieceRect.top },
-        }
-
-        const canMove = direction => directions.includes(direction)
-
-        const moveTo = (X = null, Y = null) => {
-            $piece.style.left = (X || coordinates.current.X) + 'px'
-            $piece.style.top = (Y || coordinates.current.Y) + 'px'
-        }
-
-        if (coordinates.current.X < coordinates.initial.X && !canMove(Direction.Left)) {
-            moveTo(coordinates.initial.X)
-            return
-        }
-
-        if (coordinates.current.X > coordinates.initial.X && !canMove(Direction.Right)) {
-            moveTo(coordinates.initial.X)
-            return
-        }
-
-        if (coordinates.current.Y < coordinates.initial.Y && !canMove(Direction.Up)) {
-            moveTo(null, coordinates.initial.Y)
-            return
-        }
-
-        if (coordinates.current.Y > coordinates.initial.Y && !canMove(Direction.Down)) {
-            moveTo(null, coordinates.initial.Y)
-            return
-        }
-
-        // the gap bullshit is actually hella dangerous because it needs to be included in most of the calculations here
-        // but it could acually help us get smoother motion except that its a lot of work potentially for a small gain to our use case
-        // but that could make this code have a little bit more merit 
-        // if we included the gaps in the possible range of movements of the pieces on the board
-        // we should also do the bound checking ahead of time to avoid jittering of the pieces
-        if (coordinates.current.X < coordinates.initial.X - pieceRect.width) {
-            moveTo(coordinates.initial.X - pieceRect.width)
-            return
-        }
-
-        if (coordinates.current.X > coordinates.initial.X + pieceRect.width) {
-            moveTo(coordinates.initial.X + pieceRect.width)
-            return
-        }
-
-        if (coordinates.current.Y < coordinates.initial.Y - pieceRect.height) {
-            moveTo(null, coordinates.initial.Y - pieceRect.height)
-            return
-        }
-
-        if (coordinates.current.Y > coordinates.initial.Y + pieceRect.height) {
-            moveTo(null, coordinates.initial.Y + pieceRect.height)
-            return
-        }
-
-        const difference = {
-            X: Math.abs(coordinates.current.X - coordinates.initial.X),
-            Y: Math.abs(coordinates.current.Y - coordinates.initial.Y),
-        }
-
-        if (difference.X > 0 && difference.Y > 0) {
-            if (difference.Y < difference.X) {
-                moveTo(null, coordinates.initial.Y)
-                return
-            }
-
-            if (difference.X < difference.Y) {
-                moveTo(coordinates.initial.X)
-                return
-            }
-        }
-
-        // console.log(this.gapWidth)
-
-        moveTo(coordinates.current.X + movementX, coordinates.current.Y + movementY)
     }
 
     // need to examine this because something happens differently even though the final positions in both move methods are the same

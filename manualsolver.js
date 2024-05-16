@@ -78,8 +78,8 @@ export function movePiece(nodeOrState, width, height, tile, direction, immovable
     // const ummovable = node.state.filter((val, idx) => val !== 0 && val === goalState[idx])
 
     const coordinates = {
-        blank: getCoordinates(height, width, node.state.indexOf(0)),
-        target: getCoordinates(height, width, tile)
+        blank: getCoordinates(width, node.state.indexOf(0)),
+        target: getCoordinates(width, tile)
     }
 
     if (coordinates.blank.x === coordinates.target.x) {
