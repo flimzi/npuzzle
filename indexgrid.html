@@ -77,27 +77,41 @@
     // const grid = new PuzzleGridEndBlank(5, 5, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 0, 21, 22, 23, 19, 24])
     // const grid = new PuzzleGridEndBlank(5, 5, [0, 1, 2, 3, 4, 12, 24, 6, 13, 21, 20, 15, 16, 18, 8, 9, 7, 23, 11, 5, 22, 10, 17, 14, 19])
     // const grid = new PuzzleGridEndBlank(5, 3)
-    const grid = new PuzzleGridEndBlank(3, 5)
-    // const grid = new PuzzleGrid(3)
+    // const grid = new PuzzleGridEndBlank(3, 5)
+    const grid = new PuzzleGridEndBlank(3)
     window.grid = grid
     window.manual = manual
     window.iface = iface
     window.Rotation = Rotation
     grid.edit = true
-    const $grid = grid.draw()
+
+    // avoids reinstantiation but idk if its even ok
+    // we should probably do this differently like ditch the resize observer because it doesnt really work anyway
+    // and instead base the operation on the parent (then the resize observer could be attached to the parent maybe that would work)
+    window.redraw = function() {
+        // document.querySelector('.test')
+        const $grid = grid.draw()
+        $grid.classList.add('grid')
+        document.querySelector('.test').appendChild($grid)
+
+        // potentially important (wait wtf?)
+        $grid.addEventListener('mousemove', e => {
+            e.preventDefault()
+        })
+    }
+
+    const testResize = new ResizeObserver(entries => {
+        // alert('resize')
+    })
+
+    testResize.observe(document.querySelector('.test'))
+
+    window.redraw()
 
     // window.e1 = EightPuzzle.endBlank(grid.width, grid.height, grid.getState())
     window.e1 = new EightPuzzle(grid.width, grid.height, grid.getState(), grid.puzzle.goalState)
     window.EightPuzzle = EightPuzzle
     // window.pgeb = new PuzzleGridEndBlank(4)
-
-    $grid.classList.add('grid')
-    document.querySelector('.test').appendChild($grid)
-
-    // potentially important (wait wtf?)
-    $grid.addEventListener('mousemove', e => {
-        e.preventDefault()
-    })
 
     const text = {
         solve: 'solve',

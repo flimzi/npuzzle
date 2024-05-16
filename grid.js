@@ -9,6 +9,13 @@ import { EightPuzzle, Node } from "./npuzzle.js"
 import { Direction, Axis, WorkerMessageType, stateTo2d, offset, getDistance } from './interface.js'
 import { switchBlankWithTile } from './manualsolver.js'
 
+const puzzleStates8EndBlank = fetch('http://localhost:8000/8puzzleStateSpace.json').then(response => {
+    if (!response.ok)
+        throw new Error('cant fetch')
+
+    return response.json()
+})
+
 export class Grid {
     constructor(width, height = null) {
         this.width = width
@@ -164,32 +171,20 @@ class DivGrid extends Grid {
     }
 
     draw() {
+        this.$grid?.remove()
         const $grid = document.createElement('div')
         $grid.style.display = 'grid'
         $grid.style.boxSizing = 'border-box'
 
-        const resizeObserver = new ResizeObserver(async entries => {
-            // these operations should probably be postponed whenever an event handler
-            // but idk if this even works on resize so
-
-            // const tileSize = $grid.clientWidth < $grid.clientHeight
-            //     ? $grid.clientWidth / this.width
-            //     : $grid.clientHeight / this.height
-
-            // need to make it so that there is no gap used because it sucks
+        this.resizeObserver = new ResizeObserver(async entries => {
             const style = window.getComputedStyle($grid)
             this.borderWidth = parseInt(style.getPropertyValue('border')) || 1
             this.gapWidth = parseInt(style.getPropertyValue('gap')) || 1
             this.gridRect = $grid.getBoundingClientRect()
+            console.log(this.gridRect)
             const verticalGapWidth = (this.height - 1) * this.gapWidth + 2 * this.borderWidth
             const horizontalGapWidth = (this.width - 1) * this.gapWidth + 2 * this.borderWidth
-            
-            // this is taking into consideration clientwidth and clientheight for the case when the grid itself is a rectangle
-            // but it doesnt consider this.width and this.height so when the grid is square and width > height it extends outside the grid
-            // so im not really sure how to fix it but it needs to consider this.width and this.height
-            const tileSize = $grid.clientWidth < $grid.clientHeight || this.height < this.width
-                ? ($grid.offsetWidth - horizontalGapWidth) / this.width
-                : ($grid.offsetHeight - verticalGapWidth) / this.height
+            const tileSize = Math.min(($grid.offsetWidth - horizontalGapWidth) / this.width, ($grid.offsetHeight - verticalGapWidth) / this.height)
 
             $grid.style.gridTemplateColumns = `repeat(${this.width}, ${tileSize}px)`
             $grid.style.gridTemplateRows = `repeat(${this.height}, ${tileSize}px)`
@@ -197,15 +192,7 @@ class DivGrid extends Grid {
             $grid.parentElement.style.display = 'flex'
             $grid.parentElement.style.justifyContent = $grid.parentElement.style.alignItems = 'center'
 
-            // center
-            // $grid.parentElement.style.position = 'relative'
-            // $grid.style.position = 'absolute'
-            // $grid.style.left = `${($grid.parentElement.offsetWidth - $grid.offsetWidth) / 2}px`
-            // $grid.style.top = `${($grid.parentElement.offsetHeight - $grid.offsetHeight) / 2}px`
-
-            // set size and position of pieces (nobody knows if this will work)
             for (const [$tile, $piece] of this.filledTiles()) {
-                // something weird happens here that we probably will not work out how to fix (left and top values on the tiles are incorrect)
                 const tileRect = $tile.getBoundingClientRect()
 
                 $piece.style.width = tileRect.width + 'px'
@@ -213,9 +200,11 @@ class DivGrid extends Grid {
                 $piece.style.top = tileRect.top + 'px'
                 $piece.style.left = tileRect.left + 'px'
             }
+
+            this.resizeObserver?.disconnect()
         })
 
-        resizeObserver.observe($grid)
+        this.resizeObserver.observe($grid)
 
         for (const $tile of this.grid) {
             $grid.appendChild($tile)
@@ -435,8 +424,8 @@ export class PuzzleGrid extends DivGrid {
         // this.addPiece(2)
         // this.goalState = this.getState()
 
-        if (this.width == 3 && this.height == 3)
-            this.eightPuzzleStates = this.generate8PuzzleStates()
+        // if (this.width == 3 && this.height == 3)
+        //     this.eightPuzzleStates = this.generate8PuzzleStates()
     }
 
     setupGrid(width, height, initialState = null, goalState = null) {
@@ -608,7 +597,7 @@ export class PuzzleGrid extends DivGrid {
         // if (this.eightPuzzleStates !== undefined)
         //     states = await this.eightPuzzleStates.then(states => states)
 
-        await this.moveToStateConditionally(this.puzzle.goalState, condition, states)
+        await this.moveToStateConditionally(this.puzzle.goalState, condition, await puzzleStates8EndBlank)
     }
 
     setPicture() {
