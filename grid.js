@@ -77,7 +77,7 @@ Array.prototype.random = function() {
 Array.prototype.shiftLeft = function() {
     return this.unshift(this.pop())
 }
-
+    
 Array.prototype.shiftRight = function() {
     return this.push(this.shift())
 }
@@ -220,6 +220,14 @@ class DivGrid extends Grid {
 
         this.$grid = $grid // temporary
         return $grid
+    }
+
+    // attach to parent div
+    // now that i think about it this may not be the solution to all our problems but maybe its worth a shot i mean we got no other option
+    // maybe we should also try ditching the display grid because its maybe a convenient thing but its not really versatile enough??
+    // also dont forget to readjust for scrolling
+    attach() {
+        // need to do it outside first
     }
 
     // remember that there is a addEventListener option ONCE

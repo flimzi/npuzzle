@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <script type="module" src="interface.js"></script>
+    <script type="module" src="gridclass.js"></script>
+    <script type="module" src="Vector.js"></script>
+
+    <link href="https://unpkg.com/nes.css@latest/css/nes.min.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <style>
+        .grid {
+            /* background-color: cadetblue; */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-right: -50%;
+            transform: translate(-50%, -50%);
+            /* border doesnt work */
+            /* border: 2px solid white; */
+            /* border-radius: 4%; */
+            /* kinda cool because it allows for exact sizing but it complicates things too much and with the normal 
+            box-sizing the issue can be counteracted with padding on the parent */
+            /* box-sizing: border-box; */
+        }
+
+        [data-tile] {
+            /* background-color: crimson; */
+            /* possibly many possibilities with this but im not sure what to do because late */
+            /* basically there are many ways to calculate the result */
+            /* box-sizing: border-box; */
+            /* transform: translate(-50%, -50%); */
+        }
+
+        /* [data-tile]:nth-of-type(odd) {
+            background-color: dimgray
+        } */
+
+        [data-piece] {
+            /* background-color: blueviolet; */
+            border: 1px dashed white;
+            /* border-radius: 10%; */
+            /* transform: translate(-50%, -50%); */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* [data-piece] > span {
+            width: 100%;
+            height: 100%;
+            backdrop-filter: blur(100px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        } */
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+        
+        .background {
+            flex-grow: 1;
+            /* box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column; */
+            margin: 0 !important;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .interface {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            /* this will need to go to .container for grid probably */
+            /* position: relative; */
+        }
+
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .is-hidden {
+            visibility: hidden;
+        }
+
+        .progress {
+            height: 40px;
+            width: 100%;
+            padding: 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 40%;
+            background-color: #209cee;
+        }
+
+        .footer {
+            display: flex;
+            justify-content: left;
+        }
+
+        .is-light {
+            color: #212529;
+        }
+
+        .header {
+            height: fit-content;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .container {
+            flex-grow: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            align-self: center;
+        }
+
+        .icon {
+            width: 50px;
+        }
+
+        .nes-select {
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+
+        .menu {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: fit-content;
+            flex-wrap: wrap;
+            padding-top: 1rem;
+            gap: 1rem;
+        }
+
+        .grid-container {
+            flex-grow: 1;
+            width: 100%;
+            position: relative;
+        }
+
+        .nes-balloon {
+            color: black;
+        }
+
+        .nes-cursor {
+            cursor: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABFklEQVRYR9WXURLDIAhE6/0PbSdOtUpcd1Gnpv1KGpTHBpCE1/cXq+vrMph7dGvXZTtpfW10DCA5jrH1H0Jhs5E0hnZdCR+vb5S8Nn8mQCeS9BdSalYJqMBjAGzq59xAESN7VFVUgV8AZB/dZBR7QTFDCqGquvUBVVoEtgIwpQRzmANSFHgWQKExHdIrPeuMvQNDarXe6nC/AutgV3JW+6bgqQLeV8FekRtgV+ToDKEKnACYKsfZjjkam7a0ZpYTytwmgainpC3HvwBocgKOxqRjehoR9DFKNFYtOwCGYCszobeCbl26N6yyQ6g8X/Wex/rBPsNEV6qAMaJPMynIHQCoSqS9JSMmwef51LflTgCRszU7DvAGiV6mHWfsaVUAAAAASUVORK5CYII=), auto;
+        }
+
+        .options {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @media (orientation: portrait) {
+            .menu {
+                gap: 0;
+                padding-top: 0;
+            }
+
+            .options {
+                flex-direction: row;
+                justify-content: center;
+            }
+        }
+
+</style>
+</head>
+<body>
+    <div class="nes-container is-dark is-rounded with-title background">
+        <div class="interface">
+            <div class="header">
+                <h1>Sliding tile puzzle</h1>
+                <!-- <div class="nes-balloon from-left">
+                    <p>Solved!</p>
+                </div> -->
+            </div>
+            <div class="container">
+                <div class="grid-container"></div>
+                <div class="menu">
+                    <div>
+                        <label for="row_select" style="color:#fff">Rows</label>
+                        <div class="nes-select is-dark">
+                            <select required id="row_select">
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="row_select" style="color:#fff">Columns</label>
+                        <div class="nes-select is-dark">
+                            <select required id="row_select">
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class = "options">
+                        <label>
+                            <input type="checkbox" class="nes-checkbox is-dark" checked />
+                            <span>Image</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" class="nes-checkbox is-dark" checked />
+                            <span>Labels</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" class="nes-checkbox is-dark" checked />
+                            <span>Dark</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <button type="button" class="nes-btn is-primary">Shuffle</button>
+                    <button type="button" class="nes-btn is-primary">Solve</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module">
+        import Grid from './gridclass.js'
+        import * as util from './interface.js'
+        import Vector from './Vector.js'
+
+        // write handles for ui
+
+        const grid = new Grid(document.querySelector('.grid-container'), 5)
+        // grid.picture.then(p => alert('downloaded'))
+
+        window.util = util
+        window.Vector = Vector
+    </script>
+</body>
+</html>

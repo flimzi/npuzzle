@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <script type="module" src="interface.js"></script>
+    <script type="module" src="gridtest.js"></script>
+    <style>
+        /* pretty sure if we do the grid ourself its going to be absolute anyway because its like the easiest way */
+        /* so this would just be a point of reference */
+        body {
+            background-color: grey;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            height: 50%;
+            width: 50%;
+            /* background-color: rgb(219, 97, 97); */
+            position: relative;
+        }
+
+        .grid {
+            /* background-color: cadetblue; */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-right: -50%;
+            transform: translate(-50%, -50%);
+            border: 5px solid black;
+            border-radius: 4%;
+            background-color: aliceblue;
+            /* kinda cool because it allows for exact sizing but it complicates things too much and with the normal 
+            box-sizing the issue can be counteracted with padding on the parent */
+            /* box-sizing: border-box; */
+        }
+
+        [data-tile] {
+            /* background-color: crimson; */
+            /* possibly many possibilities with this but im not sure what to do because late */
+            /* basically there are many ways to calculate the result */
+            /* box-sizing: border-box; */
+            transform: translate(-50%, -50%);
+        }
+
+        /* [data-tile]:nth-of-type(odd) {
+            background-color: dimgray
+        } */
+
+        [data-piece] {
+            /* background-color: blueviolet; */
+            border: 1px solid black;
+            border-radius: 10%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+    </div>
+</body>
+</html>

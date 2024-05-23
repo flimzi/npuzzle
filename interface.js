@@ -22,20 +22,11 @@ export const WorkerMessageType = {
 
 export const xy = (x, y) => { return { x, y } }
 
-export function coordinateToDirection(x, y) {
-    if (x < 0)
-        return Direction.Left
-
-    if (x > 0)
-        return Direction.Right
-
-    if (y < 0)
-        return Direction.Up
-
-    if (y > 0)
-        return Direction.Down
-
-    return null
+export function coordinateToDirection({ x, y }) {
+    if (Math.abs(x) > Math.abs(y))
+        return x > 0 ? Direction.Right : Direction.Left
+    else
+        return y > 0 ? Direction.Down : Direction.Up
 }
 
 export function directionToCoordinates(direction) {
@@ -55,8 +46,24 @@ export function directionToCoordinates(direction) {
 
 // should be in a class obviously
 // also this name is wrong because it should be subtraction
+export function add({x, y}, val) {
+    return xy(x + val, y + val)
+}
+
 export function offset(xy1, xy2) {
     return xy(xy1.x + xy2.x, xy1.y + xy2.y)
+}
+
+export function scale({ x, y }, multiplier) {
+    return xy(x * multiplier, y * multiplier)
+}
+
+export function floor({ x, y }) {
+    return xy(Math.floor(x), Math.floor(y))
+}
+
+export function getDifference(xy1, xy2) {
+    return xy(xy1.x - xy2.x, xy1.y - xy2.y)
 }
 
 export function getDistance(xy1, xy2) {
@@ -149,7 +156,7 @@ Array.prototype.first = function(modifier, predicate) {
 }
 
 Array.prototype.pairwise = function() {
-    return iface.range(Math.max(0, this.length - 1)).map(idx => [this[idx], this[idx + 1]])
+    return range(Math.max(0, this.length - 1)).map(idx => [this[idx], this[idx + 1]])
 }
 
 Array.prototype.compare = function(other) {
@@ -157,7 +164,7 @@ Array.prototype.compare = function(other) {
 }
 
 Array.range = function(size) {
-    return iface.range(size)
+    return range(size)
 }
 
 Array.prepend = function(other) {
@@ -165,12 +172,42 @@ Array.prepend = function(other) {
 }
 
 Number.prototype.range = function() {
-    return iface.range(this)
+    return range(this)
+}
+
+Array.prototype.toShuffled = function() {
+    const array = this.slice()
+    
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+
+    return array
 }
 
 // this should be a generator because stack overflow
 export function range(length) {
     return [...Array(length).keys()]
+}
+
+export function getAdjacent(width, height, index) {
+    const {x, y} = getCoordinates(width, index)
+    const adjacent = []
+
+    if (x > 0)
+        adjacent.push(index - 1)
+
+    if (x < width - 1)
+        adjacent.push(index + 1)
+
+    if (y > 0)
+        adjacent.push(index - width)
+
+    if (y < height - 1)
+        adjacent.push(index + width)
+
+    return adjacent
 }
 
 // doesnt work for rectangle
@@ -188,4 +225,24 @@ export function getNeighbors(width, height, tileId) {
 
     // im hoping this preserves the order when not every neighbor is available but it seems to do so
     return { ...neighbors, all: neighbors.adjacent.zip(neighbors.diagonal).flat().filter(x => x !== undefined) }
+}
+
+ImageData.prototype.shouldTextBeWhite = function() {
+    let totalBrightness = 0
+
+    for (let i = 0; i < this.data.length; i += 4) {
+        // Get the RGB values
+        const r = this.data[i]
+        const g = this.data[i + 1]
+        const b = this.data[i + 2]
+
+        // Calculate brightness using the luminance formula
+        const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        totalBrightness += brightness
+    }
+
+    const averageBrightness = totalBrightness / (this.width * this.height)
+
+    // Choose text color based on average brightness
+    return averageBrightness < 128
 }
