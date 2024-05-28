@@ -186,9 +186,44 @@ Array.prototype.toShuffled = function() {
     return array
 }
 
+// Array.prototype.toGenerator = function*() {
+//     for (const item of this)
+//         yield item
+// }
+
+Array.prototype.toIterator = function() {
+    return Iterator.from(this)
+}
+
+// export function *take(generator, count = 1) {
+//     for (const idx of Array.range(Math.abs(count))) {
+//         if (generator.done)
+//             return
+
+//         yield generator.next().value
+//     }
+// }
+
+// export function *skip(generator, count = 1) {
+//     take(generator, count - 1)
+//     const {done, value} = generator.next()
+//     return !done && value
+// }
+
+// Iterator.prototype.consume = function(count = 1) {
+
+// }
+
+// Iterator.prototype.skip = function(count = 1) {
+
+//     this.take(count - 1)
+//     const { done, value } = this.next()
+//     return !done && value
+// }
+
 // this should be a generator because stack overflow
 export function range(length) {
-    return [...Array(length).keys()]
+    return Array(length).keys().toArray()
 }
 
 export function getAdjacent(width, height, index) {
@@ -210,20 +245,36 @@ export function getAdjacent(width, height, index) {
     return adjacent
 }
 
-// doesnt work for rectangle
+export function getAdjacentWithDirections(width, height, index) {
+    const { x, y } = getCoordinates(width, index)
+    const adjacent = []
+
+    if (x > 0)
+        adjacent.push([Direction.Left, index - 1])
+
+    if (x < width - 1)
+        adjacent.push([Direction.Right, index + 1])
+
+    if (y > 0)
+        adjacent.push([Direction.Up, index - width])
+
+    if (y < height - 1)
+        adjacent.push([Direction.Down, index + width])
+
+    return adjacent
+}
+
 export function getNeighbors(width, height, tileId) {
     const tileXY = getCoordinates(width, tileId)
     const offsetsToIndexes = offsets => offsets.map(off => offset(tileXY, off))
                                                .filter(({x, y}) => x >= 0 && y >= 0 && x < width && y < height)
                                                .map(({x,y}) => getIndex(x, y, width))
 
-    // need to reverse the coordinates because its backwards by default
     const neighbors = {
         adjacent: offsetsToIndexes([ xy(0, -1), xy(-1, 0), xy(0, 1), xy(1, 0) ]),
         diagonal: offsetsToIndexes([ xy(-1, -1), xy(-1, 1), xy(1, 1), xy(1, -1) ])
     }
 
-    // im hoping this preserves the order when not every neighbor is available but it seems to do so
     return { ...neighbors, all: neighbors.adjacent.zip(neighbors.diagonal).flat().filter(x => x !== undefined) }
 }
 
@@ -245,4 +296,8 @@ ImageData.prototype.shouldTextBeWhite = function() {
 
     // Choose text color based on average brightness
     return averageBrightness < 128
+}
+
+Object.prototype.toPx = function() {
+    return this + 'px'
 }

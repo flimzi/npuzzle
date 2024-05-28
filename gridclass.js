@@ -1,7 +1,9 @@
 import * as util from './interface.js'
+import { EightPuzzle, Node } from './npuzzle.js'
 
 export default class Grid {
-    constructor($parent, rows, columns = null, initialState = null) {
+    // $parent here is non idiomatic
+    constructor($parent, rows, columns = null, initialState = null, random = true) {
         this.$parent = $parent
         this.rows = rows
         this.columns = columns ?? rows
@@ -12,10 +14,27 @@ export default class Grid {
         // this.pieceRatio = .98
         this.pieceRatio = 1
         this.showLabels = false
-        this.setState(this.initialState)
+
+        if (random)
+            this.setRandomState()    
+        else
+            this.setState(this.initialState)
+
         this.margin = 0
+        this.moveDuration = 100
+        this.onChangeState = []
 
         $parent.appendChild(this.$grid)
+        this.updateCorrectness()
+        this.getResizeCallback()()
+    }
+
+    get blankTile() {
+        return this.getState().indexOf(0)
+    }
+
+    get $blankTile() {
+        return this.grid[this.blankTile]
     }
 
     createTile(id) {
@@ -58,11 +77,59 @@ export default class Grid {
         $piece.style.height = $tile.clientHeight * this.pieceRatio + 'px'
     }
 
-    async movePieceToTile($piece, $tile, duration = 100) {
-        $piece.style.transition = `top ${duration}ms linear, left ${duration}ms linear`
-        this.assignPieceToTile($piece, $tile)
-        await new Promise(r => setTimeout(r, duration))
+    // these methods need to be rewritten for more safetly and utility
+    // make it so that if tilefrom has no 
+    async moveTileToTile($tileFrom, $tileTo) {
+        $tileFrom = $tileFrom instanceof HTMLDivElement ? $tileFrom : this.grid[$tileFrom]
+        $tileTo = $tileTo instanceof HTMLDivElement ? $tileTo : this.grid[$tileTo]
+
+        const { $piece } = $tileFrom
+
+        if ($piece === null && $tileFrom.$piece === null)
+            throw new Exception('empty tiles')
+        
+        if ($piece === null)
+            return this.moveTileToTile($tileTo, $tileFrom)
+    
+        $piece.style.transition = `top ${this.moveDuration}ms linear, left ${this.moveDuration}ms linear`
+        this.assignPieceToTile($piece, $tileTo)
+        await new Promise(r => setTimeout(r, this.moveDuration))
         $piece.style.transition = ''
+
+        this.updateCorrectness($piece)
+        this.onChangeState.forEach(handler => handler(this))
+    }
+
+    movePieceToTile($piece, $tile) {
+        return this.moveTileToTile($piece.$tile, $tile)
+    }
+
+    movePieceIdToTile($pieceId, $tile) {
+        const $tileFrom = this.pieces().find($p => $p.pieceId === $pieceId)?.$tile
+
+        if ($tileFrom === undefined)
+            return this.moveTileToTile($tile, this.blankTile)
+
+        return this.movePieceToTile($tileFrom, $tile)
+    }
+
+    moveBlankToTile($tile) {
+        return this.movePieceIdToTile(0, $tile)
+    }
+
+    changeState(nodeOrState) {
+        const node = Node.fromNodeOrState(nodeOrState)
+
+        if (this.getState().compare(node.state))
+            return // weird ik
+
+        return this.moveBlankToTile(Node.fromNodeOrState(nodeOrState).state.indexOf(0))
+    }
+
+    changeStateWithChecks(nodeOrState) {
+        // todo ismovelegal etc
+
+        return this.changeState(nodeOrState)
     }
 
     assignOrAddPieceToTile(pieceId, $tile) {
@@ -84,13 +151,7 @@ export default class Grid {
 
     swipeMove($piece, startXY, endXY) {
         const deltaXY = util.getDifference(endXY, startXY)
-        let direction
-    
-        if (Math.abs(deltaXY.x) > Math.abs(deltaXY.y))
-            direction = deltaXY.x > 0 ? util.Direction.Right : util.Direction.Left
-        else
-            direction = deltaXY.y > 0 ? util.Direction.Down : util.Direction.Up
-    
+        const direction = util.coordinateToDirection(deltaXY)
         const indexXY = util.offset(util.getCoordinates(this.columns, $piece.$tile.tileId), util.directionToCoordinates(direction))
         const index = util.getIndex(indexXY.x, indexXY.y, this.columns)
     
@@ -110,7 +171,6 @@ export default class Grid {
                 this.clickMove($piece, eMouseDown, eMouseUp) || this.swipeMove($piece, eMouseDown, eMouseUp)
                 $piece.style.cursor = 'grab'
                 window.document.body.style.cursor = ''
-                window.document.body.classList.toggle('nes-cursor', true)
             }, { once: true })
         })
     
@@ -123,65 +183,56 @@ export default class Grid {
             }, { once: true })
         })
     }
+
+    async resizeCallback() {
+        // what the actual fuck is going on? is javascript like folding in on itself rn
+        const { width, height } = this.$parent.getBoundingClientRect()
+        const totalMargin = this.margin * 2
+        const tileSize = Math.floor(Math.min((height - totalMargin) / this.rows, (width - totalMargin) / this.columns))
+        const gridWidth = tileSize * this.columns
+        const gridHeight = tileSize * this.rows
+
+        this.$grid.style.width = gridWidth + 'px'
+        this.$grid.style.height = gridHeight + 'px'
+        this.grid.forEach($tile => this.adjustTile($tile, tileSize))
+
+        const scaledImgUrl = await Grid.getScaledPicture(gridWidth, gridHeight, await this.picture)
     
-    getResizeObserver() {
-        // might need to debounce this
-        let setup = true
+        this.pieces().forEach(async $piece => {
+            const coordinates = util.getCoordinates(this.columns, this.initialState.indexOf($piece.pieceId))
+            const { x, y } = util.add(util.scale(coordinates, tileSize), tileSize * (1 - this.pieceRatio))
 
-        const callback = async entries => {
-            // if (setup) {
-            //     setup = false
-            // } else {
-            //     return
-            // }
+            $piece.style.backgroundImage = `url(${scaledImgUrl})`
+            $piece.style.backgroundPosition = `-${x}px -${y}px`
+        })
+    }
 
-            // not sure if this is even needed or if we could use $parent.offsetWidth
+    getResizeCallback() {
+        return async entries => {
             const { width, height } = this.$parent.getBoundingClientRect()
             const totalMargin = this.margin * 2
             const tileSize = Math.floor(Math.min((height - totalMargin) / this.rows, (width - totalMargin) / this.columns))
             const gridWidth = tileSize * this.columns
             const gridHeight = tileSize * this.rows
-
+    
             this.$grid.style.width = gridWidth + 'px'
             this.$grid.style.height = gridHeight + 'px'
             this.grid.forEach($tile => this.adjustTile($tile, tileSize))
-
+    
             const scaledImgUrl = await Grid.getScaledPicture(gridWidth, gridHeight, await this.picture)
-            // const scaledImg = new Image()
-            // scaledImg.src = scaledImgUrl
-
-            // scaledImg.onload = () => {
-            //     // this is redunant with the getscaledpicture so need to take it outside of there
-            //     const canvas = document.createElement('canvas')
-            //     const ctx = canvas.getContext('2d')
-            //     canvas.width = gridWidth
-            //     canvas.height = gridHeight
-            //     ctx.drawImage(scaledImg, 0, 0, canvas.width, canvas.height)
-
-            //     this.pieces().forEach(async $piece => {
-            //         const { x, y } = util.getCoordinates(this.columns, this.initialState.indexOf($piece.pieceId))
-            //         const pieceOffset = tileSize * (1 - this.pieceRatio)
-            //         const offset = util.add(util.scale({ x, y }, tileSize), pieceOffset)
-            //         const imageData = ctx.getImageData(offset.x, offset.y, tileSize * this.pieceRatio, tileSize * this.pieceRatio)
-
-            //         $piece.style.backgroundImage = `url(${scaledImgUrl})`
-            //         $piece.style.backgroundPosition = `-${x * tileSize + pieceOffset}px -${y * tileSize + pieceOffset}px`
-            //         // actually we need to scratch that because i now want the wrong tiles be warning and good success
-            //         // also add a frosting effect
-            //         $piece.style.color = imageData.shouldTextBeWhite() ? 'white' : 'black'
-            //     })
-            // }
         
             this.pieces().forEach(async $piece => {
                 const coordinates = util.getCoordinates(this.columns, this.initialState.indexOf($piece.pieceId))
                 const { x, y } = util.add(util.scale(coordinates, tileSize), tileSize * (1 - this.pieceRatio))
-
+    
                 $piece.style.backgroundImage = `url(${scaledImgUrl})`
                 $piece.style.backgroundPosition = `-${x}px -${y}px`
-            })
+            })  
         }
-
-        const observer = new ResizeObserver(callback)
+    }
+    
+    getResizeObserver() {
+        const observer = new ResizeObserver(this.getResizeCallback)
         observer.observe(this.$parent)
         return observer
     }
@@ -208,14 +259,33 @@ export default class Grid {
         return $grid
     }
 
-    setState(state) {
-        state.forEach((pieceId, tileId) => pieceId !== 0 && this.assignOrAddPieceToTile(pieceId, this.grid[tileId]))
+    updateCorrectness($piece = null) {
+        const correctTiles = this.getPuzzle().getCorrectTilesWithout0()
+        const $pieces = $piece === null ? this.pieces() : [$piece]
+        $pieces.forEach($piece => $piece.classList.toggle('correct', correctTiles.includes($piece.$tile.tileId)))
+    }
+
+    getPuzzle() {
+        return new EightPuzzle(this.columns, this.rows, this.getState())
+    }
+
+    getPiece(id) {
+        return this.pieces().find($piece => $piece.pieceId === id)
+    }
+
+    getState() {
+        return this.grid.map($tile => $tile.$piece?.pieceId ?? 0)
+    }
+
+    setState(nodeOrState) {
+        Node.fromNodeOrState(nodeOrState).state.forEach((pieceId, tileId) => pieceId !== 0 && this.assignOrAddPieceToTile(pieceId, this.grid[tileId]))
     }
 
     adjacentEmpty(index) {
         return util.getAdjacent(this.columns, this.rows, index).filter(action => this.grid[action].$piece === null)
     }
 
+    // might need to add tileLoop and pieceLoop
     pieces() {
         return this.grid.map($tile => $tile.$piece).filter($piece => $piece)
     }
@@ -223,6 +293,31 @@ export default class Grid {
     setPicture(url) {
         return this.picture = fetch(url).then(async r => URL.createObjectURL(await r.blob()))
     }
+
+    get isSolved() {
+        return this.getPuzzle().isGoal()
+    }
+
+    async *streamChange(arrayOrGenerator) {
+        for (const state of arrayOrGenerator)
+            yield await this.changeState(state)
+    }
+
+    async changeToState(arrayOrGenerator) {
+        for await (const value of this.streamChange(arrayOrGenerator))
+            continue
+    }
+
+    changeToNode(node) {
+        return this.changeToState(node.getPath().map(n => n.state)) 
+    }
+
+    *shuffle() {
+        yield* this.streamChange(this.getPuzzle().randomMoves())
+    }
+
+    // could also have a method that returns a controller for the generator consumer that allows to pause etc but this is probably redunadnt and not useful
+    // you can control the stream by just calling next().value
 
     setRandomPicture() {
         // needs to be adjusted because smaller grid sizes have worse quality pictures
@@ -246,9 +341,12 @@ export default class Grid {
             }
         })
     }
-}
 
-// window.Grid = Grid
-// window.util = util
-// window.grid1 = new Grid(document.querySelector('.container'), 3, 5)
-// window.grid1.pieceRatio = 1
+    setRandomState() {
+        this.setState(EightPuzzle.random(this.columns, this.rows, this.goalState).initialState)
+    }
+
+    solve() {
+        return this.changeToNode(this.getPuzzle().tryGetSolution())
+    }
+}

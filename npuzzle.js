@@ -1,5 +1,4 @@
 import * as iface from "./interface.js";
-import { Grid } from './grid.js'
 import { moveBlank, moveTileRaw } from "./manualsolver.js";
 
 class PriorityQueue {
@@ -66,18 +65,14 @@ export class Node {
 export class EightPuzzle {
     constructor(width, height = null, initialState = null, goalState = null) {
         this.width = width
-        this.height = height || width
-        this.goalState = goalState || EightPuzzle.generateGoalState(this.width, this.height)
-        this.initialState = initialState || this.generateValidPuzzleStateHardcore(this.goalState)
-
-        this.diagnostics = {
-            manhattanTotal: 0,
-            manhattanTime: 0,
-            manhattanAvarageTime: 0
-        }
+        this.height = height ?? width
+        this.goalState = goalState ?? EightPuzzle.generateGoalStateEndBlank(this.width, this.height)
+        this.initialState = initialState ?? this.goalState
     }
 
-    isGoal(state) {
+    // methods below should be in Node
+
+    isGoal(state = this.initialState) {
         // return state === this.goalState // WTF
         return JSON.stringify(state) === JSON.stringify(this.goalState) // omg
     }
@@ -114,6 +109,8 @@ export class EightPuzzle {
         // [stateCopy[action], stateCopy[blankIndex]] = [stateCopy[blankIndex], stateCopy[action]]
         return stateCopy
     }
+
+    // methods above should be in Node
 
     printGrid() {
         iface.print2dState([...Object.keys(this.initialState)], this.width, this.height)
@@ -306,7 +303,7 @@ export class EightPuzzle {
         let xy = iface.getCoordinates(this.width, tileId)
 
         for (let moved = 0; moved < distance; moved++) {
-            const move = Grid.actions(this.width, this.width, iface.getIndex(xy.x, xy.y, this.width)).find(([dir]) => dir === direction)
+            const move = iface.getAdjacentWithDirections(this.width, this.width, iface.getIndex(xy.x, xy.y, this.width)).find(([dir]) => dir === direction)
 
             if (move === undefined)
                 return []
@@ -462,18 +459,17 @@ export class EightPuzzle {
         return components.concat(layers) 
     }
 
-    getCorrectTiles(nodeOrState) {
+    getCorrectTiles(nodeOrState = this.initialState) {
         const node = Node.fromNodeOrState(nodeOrState)
         return Object.keys(this.goalState).map(Number).filter(tile => this.goalState[tile] === node.state[tile])
     }
 
-    getCorrectTilesWithout0(nodeOrState) {
+    getCorrectTilesWithout0(nodeOrState = this.initialState) {
         return this.getCorrectTiles(nodeOrState).filter(tile => nodeOrState[tile] !== 0)
     }
 
     // this probably will not work for anything other than end blank goal state so no need to pass it down
-    // seems to work 50/50 and returns 12 nodes instead of 21 on failure which sucks
-    *trySolve() {
+    *trySolve () {
         if (!isSolvable(this.initialState))
             return null
         
@@ -761,18 +757,42 @@ export class EightPuzzle {
         return state
     }
 
-    generateValidPuzzleStateHardcore(goalState, moves = 1000) {
-        // return iface.range(cycles).reduce(acc => acc = this.result(acc, this.actions(acc).random()), goalState)
+    // *randomMoves(nodeOrState) {
+    //     let state = this.initialState.slice()
+    //     let previous0
 
-        let state = goalState
+    //     while (true) {
+    //         const nextState = this.result(state, this.actions(state).filter(i => i !== previous0).random())
+    //         yield nextState
+    //         previous0 = state.indexOf(0)
+    //         state = nextState
+    //     }
+    // }
+
+    // generateValidPuzzleStateHardcore(goalState, moves = 1000) {
+    //     // return iface.range(cycles).reduce(acc => acc = this.result(acc, this.actions(acc).random()), goalState)
+
+    //     let state = goalState
+    //     let previousAction
+
+    //     for (let move = 0; move++ < moves;) {
+    //         previousAction = this.actions(state).filter(action => action !== previousAction).random() 
+    //         state = this.result(state, previousAction)
+    //     }
+
+    //     return state
+    // }
+
+    *randomMoves(nodeOrState = this.initialState) {
+        let node = Node.fromNodeOrState(nodeOrState)
         let previousAction
 
-        for (let move = 0; move++ < moves;) {
-            previousAction = this.actions(state).filter(action => action !== previousAction).random() 
-            state = this.result(state, previousAction)
+        while (true) {
+            const action = this.actions(node.state).filter(action => action !== previousAction).random()
+            const nextNode = new Node(this.result(node.state, action))
+            previousAction = node.blankIndex
+            yield node = nextNode
         }
-
-        return state
     }
 
     // todo rewrite this with adjustedNeighbors so that we can have a point of reference for state checking and rewinding
@@ -936,6 +956,57 @@ export class EightPuzzle {
 
     isNodeLegal(node) {
         return node.getPath().pairwise().map(([cur, next]) => this.isMoveLegal(cur.state, next.state)).every(legal => legal)
+    }
+
+    static random(width, height = null, goalState = null) {
+        const puzzle = new EightPuzzle(width, height, null, goalState)
+        puzzle.initialState = puzzle.randomMoves(puzzle.goalState).drop(1000).next().value.state
+        return puzzle
+    }
+
+    // this doesnt work as intended so init() needs to be called externally
+    // static {
+    //     new Promise(resolve => {
+    //         const worker = new Worker('./stateWorker.js', { type: 'module' });
+    //         worker.onmessage = event => {
+    //             EightPuzzle.eightPuzzleStates = event.data
+    //             worker.terminate() // without this there are new workers being created constantly but why
+    //         }
+    //     })
+
+    //     EightPuzzle.solveWorker = new Worker('./solveWorker.js', { type: 'module' })
+    // }
+
+    solveFromStates() {
+        if (this.width !== 3 || this.height !== 3 || !EightPuzzle.eightPuzzleStates)
+            return null
+
+        return this.bestFirstSearch(n => n.pathCost + EightPuzzle.eightPuzzleStates[n.state])
+    }
+
+    solveWithStates() {
+        return this.solveFromStates() ?? this.tryGetSolution()
+    }
+
+    solveWithStatesAsync() {
+        return new Promise(resolve => {
+            const receive = ({data}) => {
+                console.log(data)
+            }
+
+            EightPuzzle.solveWorker.addEventListener('message', receive)
+            EightPuzzle.solveWorker.postMessage(this)
+        })
+    }
+
+    static init() {
+        const stateWorker = new Worker('./stateWorker.js', { type: 'module' });
+        stateWorker.onmessage = event => {
+            EightPuzzle.eightPuzzleStates = event.data
+            stateWorker.terminate() // without this there are new workers being created constantly but why
+        }
+
+        EightPuzzle.solveWorker = new Worker('./solveWorker.js', { type: 'module' })
     }
 }
 

@@ -15,6 +15,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
     <style>
+        * {
+            user-select: none;
+        }
+
         .grid {
             /* background-color: cadetblue; */
             position: absolute;
@@ -50,16 +54,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            color: #e76e55;
         }
 
-        /* [data-piece] > span {
-            width: 100%;
-            height: 100%;
-            backdrop-filter: blur(100px);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        } */
+        [data-piece] > span {
+            font-size: 2rem;
+        }
+
+        [data-piece].correct {
+            color: #92cc41;
+        }
 
         html, body {
             width: 100%;
@@ -103,15 +107,24 @@
         }
 
         .progress {
+            border: 5px solid white;
             height: 40px;
-            width: 100%;
+            width: 20%;
             padding: 0;
+            position: absolute;
+            z-index: 10000;
+            transform: translate(-50%, -50%);
+            top: 50%;
+            left: 50%;
+            margin-right: -50%;
+            background-color: #212529;
         }
 
         .progress-bar {
             height: 100%;
-            width: 40%;
+            width: 0;
             background-color: #209cee;
+            transition: width 100ms linear
         }
 
         .footer {
@@ -191,6 +204,10 @@
             }
         }
 
+        .solid-background {
+            background: orange !important;
+        }
+
 </style>
 </head>
 <body>
@@ -203,12 +220,16 @@
                 </div> -->
             </div>
             <div class="container">
-                <div class="grid-container"></div>
+                <div class="grid-container">
+                    <div class="nes-pointer is-hidden progress">
+                        <div class="progress-bar"></div>
+                    </div>
+                </div>
                 <div class="menu">
                     <div>
-                        <label for="row_select" style="color:#fff">Rows</label>
+                        <label for="row_select is-light">Rows</label>
                         <div class="nes-select is-dark">
-                            <select required id="row_select">
+                            <select required id="row_select" onchange="Settings.rows = this.value">
                                 <option value="3">3</option>
                                 <option value="4">4</option>
                                 <option value="5">5</option>
@@ -216,9 +237,9 @@
                         </div>
                     </div>
                     <div>
-                        <label for="row_select" style="color:#fff">Columns</label>
+                        <label for="row_select is-light">Columns</label>
                         <div class="nes-select is-dark">
-                            <select required id="row_select">
+                            <select required id="column_select" onchange="Settings.columns = this.value">
                                 <option value="3">3</option>
                                 <option value="4">4</option>
                                 <option value="5">5</option>
@@ -226,23 +247,23 @@
                         </div>
                     </div>
                     <div class = "options">
-                        <label>
-                            <input type="checkbox" class="nes-checkbox is-dark" checked />
+                        <!-- <label>
+                            <input type="checkbox" onchange="window.image(this.checked)" class="nes-checkbox is-dark" checked />
                             <span>Image</span>
-                        </label>
+                        </label> -->
                         <label>
-                            <input type="checkbox" class="nes-checkbox is-dark" checked />
+                            <input type="checkbox" id="label" onchange="Settings.labels = this.checked" class="nes-checkbox is-dark" />
                             <span>Labels</span>
                         </label>
                         <label>
-                            <input type="checkbox" class="nes-checkbox is-dark" checked />
+                            <input type="checkbox" id="dark" onchange="Settings.dark = this.checked" class="nes-checkbox is-dark" checked />
                             <span>Dark</span>
                         </label>
                     </div>
                 </div>
                 <div>
-                    <button type="button" class="nes-btn is-primary">Shuffle</button>
-                    <button type="button" class="nes-btn is-primary">Solve</button>
+                    <button type="button" onclick="Controls.shuffle()" id="shuffle" class="nes-btn is-primary">Shuffle</button>
+                    <button type="button" onclick="Controls.solveWithProgress()" id="solve" class="nes-btn is-primary">Solve</button>
                 </div>
             </div>
         </div>
@@ -251,14 +272,231 @@
         import Grid from './gridclass.js'
         import * as util from './interface.js'
         import Vector from './Vector.js'
+        import { PuzzleGrid } from './grid.js'
+        import { EightPuzzle } from './npuzzle.js'
+        
+        EightPuzzle.init()
+        // i think the element getters should be here maybe?
 
-        // write handles for ui
+        window.Controls = class Controls {
+            static get $solve() { return document.querySelector('#solve') }
+            static get $shuffle() { return document.querySelector('#shuffle') }
 
-        const grid = new Grid(document.querySelector('.grid-container'), 5)
-        // grid.picture.then(p => alert('downloaded'))
+            static setSolved(on) {
+                const labels = ['Solve', 'Solved!']
+                const classes = ['is-primary', 'is-success']
 
+                Controls.$solve.classList.replace(classes[+!on], classes[+on])
+                Controls.$solve.innerText = labels[+on]
+            }
+
+            static stop() {
+                Controls.$shuffle.inProgress = false
+                Controls.$solve.inProgress = false
+                Progress.show(false)
+            }
+
+            static async solve() {
+                const $solve = Controls.$solve
+
+                if ($solve.inProgress) {
+                    $solve.inProgress = false
+                    return
+                }
+
+                Controls.stop()
+                $solve.inProgress = true
+                const solution = window.grid.getPuzzle().trySolve()
+
+                // this is trecherous because multiple actions can be queued potentially while waiting for next item from generator
+                while ($solve.inProgress)
+                    await window.grid.changeToNode(solution.next().value)
+            }
+
+            static async solveWithProgress() {
+                const $solve = Controls.$solve
+
+                if ($solve.inProgress) {
+                    $solve.inProgress = false
+                    return
+                }
+
+                Progress.$progress.addEventListener('click', Controls.stop, { once: true })
+                Controls.stop()
+                $solve.inProgress = true
+                const bubble = Controls.showBubble('Loading...')
+                const path = (await window.grid.getPuzzle().solveWithStates()).getPath()
+                bubble.hide()
+                let i = 0
+
+                while ($solve.inProgress && i < path.length) {
+                    const move = path[i]
+                    Progress.setPercentage((++i / path.length) * 100) 
+                    await window.grid.changeState(move)
+                }
+            }
+
+            static async shuffle() {
+                const $shuffle = Controls.$shuffle
+
+                if ($shuffle.inProgress) {
+                    $shuffle.inProgress = false
+                    return
+                }
+
+                Controls.stop()
+                $shuffle.inProgress = true
+                $shuffle.innerText = 'Stop'
+                const randomMoves = window.grid.getPuzzle().randomMoves()
+
+                while ($shuffle.inProgress)
+                    await window.grid.changeState(randomMoves.next().value)
+
+                $shuffle.innerText = 'Shuffle'
+            }
+
+            static checkSolution() {
+                Controls.setSolved(window.grid.isSolved)
+            }
+
+            static showBubble(text) {
+                const $bubble = document.createElement('div')
+                $bubble.classList.add('nes-balloon', 'from-left')
+                $bubble.innerHTML = `<p>${text}</p>`
+                $bubble.style.position = 'absolute'
+                $bubble.style.zIndex = 100000
+                $bubble.style.transform = 'translate(0%, -120%)'
+                document.body.appendChild($bubble)
+                
+                const move = e => {
+                    $bubble.style.top = e.y.toPx()
+                    $bubble.style.left = e.x.toPx()
+                }
+
+                const hide = () => {
+                    document.body.removeChild($bubble)
+                    window.removeEventListener('mousemove', move)
+                }
+
+                window.addEventListener('mousemove', move)
+                window.dispatchEvent(new MouseEvent('mousemove'))
+
+                return { hide }
+            }
+        }
+
+        window.Settings = class Settings {
+            static get $dark() { return document.querySelector('#dark') } 
+            static get $label() { return document.querySelector('#label') } 
+            static get $pieces() { return document.querySelectorAll('[data-piece]') } 
+            static get $labels() { return document.querySelectorAll('[data-piece] > span') } 
+            static get $rows() { return document.querySelector('#row_select') } 
+            static get $columns() { return document.querySelector('#column_select') }
+
+            static onChangeSize = []
+
+            static setup(maxRows = 7, maxCols = 7) {
+                const setupSelect = ($select, max) => $select.innerHTML = Array.range(max + 1).slice(3).map(v => `<option value="${v}">${v}</option>`)
+                setupSelect(Settings.$rows, maxRows)
+                setupSelect(Settings.$columns, maxCols)
+            }
+
+            static set dark(on) {
+                const classes = ['is-light', 'is-dark']
+                // not sure how this works selector wise
+                document.querySelectorAll('.' + classes[+!on]).forEach(e => e.classList.replace(classes[+!on], classes[+on]))
+                return Settings.$dark.checked = on
+            }
+
+            static get dark() {
+                return Settings.$dark.checked
+            }
+
+            static set labels(on) {
+                Settings.$labels.forEach(e => e.classList.toggle('is-hidden', !on))
+                Settings.$label.checked = on
+            }
+
+            static get labels() {
+                return Settings.$label.checked
+            }
+
+            static set rows(rows) {
+                Controls.stop()
+                Settings.$rows.value = rows
+                Settings.onChangeSize.forEach(handler => handler())
+            }
+
+            static get rows() {
+                return parseInt(Settings.$rows.value)
+            }
+
+            static set columns(columns) {
+                Controls.stop()
+                Settings.$columns.value = columns
+                Settings.onChangeSize.forEach(handler => handler())
+            }
+
+            static get columns() {
+                return parseInt(Settings.$columns.value)
+            }
+
+            static {
+                Settings.setup(16, 16)
+            }
+        }
+
+        window.Progress = class Progress {
+            static get $progress() { return document.querySelector('.progress') }
+            static get $progressBar() { return document.querySelector('.progress-bar') }
+
+            static show(show = true) {                
+                Progress.$progressBar.style.width = 0
+                Controls.setSolved(false)
+                Progress.$progress.classList.toggle('is-hidden', !show)
+            }
+
+            static setPercentage(percentage, setSolved = true) {
+                Progress.show()
+                const capped = Math.min(Math.max(percentage, 0), 100)
+                Progress.$progressBar.style.width = capped + '%'
+                setSolved && Controls.setSolved(capped >= 100)
+            }
+        }
+
+        function createGrid() {
+            const $gridContainer = document.querySelector('.grid-container')
+            
+            if (window.grid) {
+                window.grid.resizeObserver.disconnect()
+                $gridContainer.removeChild(window.grid.$grid)
+            }
+
+            window.grid = new Grid($gridContainer, Settings.rows, Settings.columns)
+        }
+
+        createGrid()
+        Settings.onChangeSize.push(createGrid)
+        Controls.checkSolution()
+        window.grid.onChangeState.push(Controls.checkSolution)
+        Settings.rows = 16
+        Settings.columns = 16
+
+        document.querySelectorAll('input[type="checkbox"]').forEach(e => {
+            e.dispatchEvent(new Event('change'))
+        })
+
+        // grid.pieces().forEach($piece => $piece.classList.toggle('nes-text', true))
+
+        // document.querySelectorAll('.grid span').forEach(e => {
+        //     e.classList.toggle('nes-text', true)
+        //     e.classList.toggle('is-error', true)
+        // })
+        
+        window.grid = grid
         window.util = util
         window.Vector = Vector
+        window.PuzzleGrid = PuzzleGrid
     </script>
 </body>
 </html>
