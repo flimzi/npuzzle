@@ -60,6 +60,10 @@ export class Node {
     static fromNodeOrState(nodeOrState) {
         return iface.getNode(nodeOrState)
     }
+
+    getStates() {
+        return this.getPath().map(n => n.state)
+    }
 }
 
 export class EightPuzzle {
@@ -470,6 +474,8 @@ export class EightPuzzle {
 
     // this probably will not work for anything other than end blank goal state so no need to pass it down
     *trySolve () {
+        debugger
+
         if (!isSolvable(this.initialState))
             return null
         
@@ -990,11 +996,7 @@ export class EightPuzzle {
 
     solveWithStatesAsync() {
         return new Promise(resolve => {
-            const receive = ({data}) => {
-                console.log(data)
-            }
-
-            EightPuzzle.solveWorker.addEventListener('message', receive)
+            EightPuzzle.solveWorker.addEventListener('message', e => resolve(e.data), { once: true })
             EightPuzzle.solveWorker.postMessage(this)
         })
     }

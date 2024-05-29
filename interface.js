@@ -121,6 +121,8 @@ export function getNode(nodeOrState) {
     
     if (Array.isArray(nodeOrState))
         return new Node(nodeOrState)
+
+    return new Node(Array.from(nodeOrState))
 }
 
 export const Orientation = { Up: 'Up', Down: 'Down' }

@@ -1,10 +1,10 @@
 import { EightPuzzle } from "./npuzzle.js"
 
-// i feel like we maybe need to partition the result because it doesnt fit on the stack?
-// also consider supporting iterator based solution
+// actually this definetely needs to transfer the ownership so we need to change the program to use Int16Array instead of [] (if possible)
+// because changing it to a typed array after the fact is completely useless in terms of performance but it aims to show to point of the operation
 self.onmessage = async ({ data }) => {
-    // const puzzle = new EightPuzzle(data.width, data.height, data.initialState, data.goalState)
-    // const path = puzzle.solveWithStates().getPath()
+    const puzzle = new EightPuzzle(data.width, data.height, data.initialState, data.goalState)
+    // const path = puzzle.solveWithStates().getStates().map(s => new Int16Array(s))
     // debugger
     // // chunk size should depend on the size of individual state but whatever
     // const chunkSize = 100
@@ -14,5 +14,6 @@ self.onmessage = async ({ data }) => {
     // debugger
     // self.postMessage(true)
 
-    // self.postMessage(x, [x])
+    // self.postMessage(path, path.map(x => x.buffer))
+    self.postMessage(puzzle.solveWithStates().getStates())
 }

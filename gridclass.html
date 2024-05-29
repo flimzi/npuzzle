@@ -274,7 +274,7 @@
         import Vector from './Vector.js'
         import { PuzzleGrid } from './grid.js'
         import { EightPuzzle } from './npuzzle.js'
-        
+
         EightPuzzle.init()
         // i think the element getters should be here maybe?
 
@@ -325,7 +325,7 @@
                 Controls.stop()
                 $solve.inProgress = true
                 const bubble = Controls.showBubble('Loading...')
-                const path = (await window.grid.getPuzzle().solveWithStates()).getPath()
+                const path = await window.grid.getPuzzle().solveWithStatesAsync()
                 bubble.hide()
                 let i = 0
 
@@ -468,19 +468,19 @@
             const $gridContainer = document.querySelector('.grid-container')
             
             if (window.grid) {
-                window.grid.resizeObserver.disconnect()
+                window.grid.resizeObserver?.disconnect()
                 $gridContainer.removeChild(window.grid.$grid)
             }
 
             window.grid = new Grid($gridContainer, Settings.rows, Settings.columns)
         }
 
+        Settings.rows = 16
+        Settings.columns = 16
         createGrid()
         Settings.onChangeSize.push(createGrid)
         Controls.checkSolution()
         window.grid.onChangeState.push(Controls.checkSolution)
-        Settings.rows = 16
-        Settings.columns = 16
 
         document.querySelectorAll('input[type="checkbox"]').forEach(e => {
             e.dispatchEvent(new Event('change'))

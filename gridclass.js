@@ -4,6 +4,9 @@ import { EightPuzzle, Node } from './npuzzle.js'
 export default class Grid {
     // $parent here is non idiomatic
     constructor($parent, rows, columns = null, initialState = null, random = true) {
+        this.margin = 0
+        this.moveDuration = 100
+        this.onChangeState = []
         this.$parent = $parent
         this.rows = rows
         this.columns = columns ?? rows
@@ -14,19 +17,16 @@ export default class Grid {
         // this.pieceRatio = .98
         this.pieceRatio = 1
         this.showLabels = false
+        this.edit = true
 
         if (random)
             this.setRandomState()    
         else
             this.setState(this.initialState)
 
-        this.margin = 0
-        this.moveDuration = 100
-        this.onChangeState = []
-
         $parent.appendChild(this.$grid)
         this.updateCorrectness()
-        this.getResizeCallback()()
+        this.resizeCallback()
     }
 
     get blankTile() {
@@ -55,6 +55,7 @@ export default class Grid {
         $piece.style.transform = 'translate(-50%, -50%)'
         $piece.style.cursor = 'grab'
         $piece.setAttribute('data-piece', $piece.pieceId)
+        $piece.style.transition = `top ${this.moveDuration}ms linear, left ${this.moveDuration}ms linear`
         this.addPieceEvents($piece)
     
         const label = document.createElement('span')
@@ -80,6 +81,9 @@ export default class Grid {
     // these methods need to be rewritten for more safetly and utility
     // make it so that if tilefrom has no 
     async moveTileToTile($tileFrom, $tileTo) {
+        if (!this.edit)
+            return
+
         $tileFrom = $tileFrom instanceof HTMLDivElement ? $tileFrom : this.grid[$tileFrom]
         $tileTo = $tileTo instanceof HTMLDivElement ? $tileTo : this.grid[$tileTo]
 
@@ -91,10 +95,13 @@ export default class Grid {
         if ($piece === null)
             return this.moveTileToTile($tileTo, $tileFrom)
     
-        $piece.style.transition = `top ${this.moveDuration}ms linear, left ${this.moveDuration}ms linear`
+        // important change moved to createpiece
+        // $piece.style.transition = `top ${this.moveDuration}ms linear, left ${this.moveDuration}ms linear`
+        $piece.classList.toggle('is-hidden', true)
         this.assignPieceToTile($piece, $tileTo)
         await new Promise(r => setTimeout(r, this.moveDuration))
-        $piece.style.transition = ''
+        // $piece.style.transition = ''
+        $piece.classList.toggle('is-hidden', false)
 
         this.updateCorrectness($piece)
         this.onChangeState.forEach(handler => handler(this))
@@ -185,7 +192,9 @@ export default class Grid {
     }
 
     async resizeCallback() {
-        // what the actual fuck is going on? is javascript like folding in on itself rn
+        // i need to somehow limit the amount of time resizeobserver takes
+        // this.$grid.parentElement?.removeChild(this.$grid)
+        
         const { width, height } = this.$parent.getBoundingClientRect()
         const totalMargin = this.margin * 2
         const tileSize = Math.floor(Math.min((height - totalMargin) / this.rows, (width - totalMargin) / this.columns))
@@ -205,34 +214,12 @@ export default class Grid {
             $piece.style.backgroundImage = `url(${scaledImgUrl})`
             $piece.style.backgroundPosition = `-${x}px -${y}px`
         })
-    }
 
-    getResizeCallback() {
-        return async entries => {
-            const { width, height } = this.$parent.getBoundingClientRect()
-            const totalMargin = this.margin * 2
-            const tileSize = Math.floor(Math.min((height - totalMargin) / this.rows, (width - totalMargin) / this.columns))
-            const gridWidth = tileSize * this.columns
-            const gridHeight = tileSize * this.rows
-    
-            this.$grid.style.width = gridWidth + 'px'
-            this.$grid.style.height = gridHeight + 'px'
-            this.grid.forEach($tile => this.adjustTile($tile, tileSize))
-    
-            const scaledImgUrl = await Grid.getScaledPicture(gridWidth, gridHeight, await this.picture)
-        
-            this.pieces().forEach(async $piece => {
-                const coordinates = util.getCoordinates(this.columns, this.initialState.indexOf($piece.pieceId))
-                const { x, y } = util.add(util.scale(coordinates, tileSize), tileSize * (1 - this.pieceRatio))
-    
-                $piece.style.backgroundImage = `url(${scaledImgUrl})`
-                $piece.style.backgroundPosition = `-${x}px -${y}px`
-            })  
-        }
+        // this.$parent.appendChild(this.$grid)
     }
     
     getResizeObserver() {
-        const observer = new ResizeObserver(this.getResizeCallback)
+        const observer = new ResizeObserver(() => this.resizeCallback())
         observer.observe(this.$parent)
         return observer
     }
@@ -299,8 +286,12 @@ export default class Grid {
     }
 
     async *streamChange(arrayOrGenerator) {
+        this.edit = false
+
         for (const state of arrayOrGenerator)
             yield await this.changeState(state)
+    
+        this.edit = true
     }
 
     async changeToState(arrayOrGenerator) {
