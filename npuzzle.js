@@ -473,11 +473,12 @@ export class EightPuzzle {
     }
 
     // this probably will not work for anything other than end blank goal state so no need to pass it down
-    *trySolve () {
-        debugger
-
-        if (!isSolvable(this.initialState))
-            return null
+    async *trySolve () {
+        // this is an issue because for some reason it returns false for some bigger states
+        // could also be the case that the lack of legal move checks is fucking with the app
+        // this kinda is unnecessary anyway because an illegal state cannot really come up
+        // if (!isSolvable(this.initialState))
+        //     return null
         
         let node = new Node(this.initialState)
         const solvedTiles = []
@@ -789,16 +790,21 @@ export class EightPuzzle {
     //     return state
     // }
 
-    *randomMoves(nodeOrState = this.initialState) {
+    // this cannot be async because there is no drop for asynciterator and i cannot extend the prototype for asynciterator because its not accessible
+    async *randomMoves(nodeOrState = this.initialState) {
         let node = Node.fromNodeOrState(nodeOrState)
         let previousAction
 
         while (true) {
             const action = this.actions(node.state).filter(action => action !== previousAction).random()
-            const nextNode = new Node(this.result(node.state, action))
+            const nextNode = new Node(this.result(node.state, action), node)
             previousAction = node.blankIndex
             yield node = nextNode
         }
+    }
+
+    async moveRandomly(moves = 1) {
+        return (await this.randomMoves().drop(moves - 1)).value
     }
 
     // todo rewrite this with adjustedNeighbors so that we can have a point of reference for state checking and rewinding
@@ -834,7 +840,6 @@ export class EightPuzzle {
 
                 node = rotate(node, !backwards)
             }
-                
 
             return node
         }
@@ -964,9 +969,9 @@ export class EightPuzzle {
         return node.getPath().pairwise().map(([cur, next]) => this.isMoveLegal(cur.state, next.state)).every(legal => legal)
     }
 
-    static random(width, height = null, goalState = null) {
+    static async random(width, height = null, goalState = null) {
         const puzzle = new EightPuzzle(width, height, null, goalState)
-        puzzle.initialState = puzzle.randomMoves(puzzle.goalState).drop(1000).next().value.state
+        puzzle.initialState = (await puzzle.randomMoves(puzzle.goalState).drop(1000)).value.state
         return puzzle
     }
 
@@ -1001,14 +1006,42 @@ export class EightPuzzle {
         })
     }
 
+    // this cannot be a generator im afraid but it can return the handler of the worker event listener that 
+    streamSolutionWithStatesAsync(callbackfn) {
+        const queue = []
+        const worker = EightPuzzle.getSolveWorker()
+
+        const processQueue = () => {
+            if (!queue.length || !window.grid.edit)
+                return
+
+            callbackfn(queue.shift()).then(processQueue)
+        }
+
+        const handleMessage = async ({ data }) => {
+            if (!data) {
+                worker.terminate()
+                return
+            }
+
+            queue.push(data)
+            processQueue()
+        }
+
+        worker.addEventListener('message', handleMessage)
+        worker.postMessage({ ...this, stream: true })
+    }
+
     static init() {
         const stateWorker = new Worker('./stateWorker.js', { type: 'module' });
         stateWorker.onmessage = event => {
             EightPuzzle.eightPuzzleStates = event.data
             stateWorker.terminate() // without this there are new workers being created constantly but why
         }
+    }
 
-        EightPuzzle.solveWorker = new Worker('./solveWorker.js', { type: 'module' })
+    static getSolveWorker() {
+        return new Worker('./solveWorker.js', { type: 'module' })
     }
 }
 

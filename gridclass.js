@@ -2,15 +2,17 @@ import * as util from './interface.js'
 import { EightPuzzle, Node } from './npuzzle.js'
 
 export default class Grid {
-    // $parent here is non idiomatic
+    // $parent here is non idiomatic, also the order of operations here can have an impact on performance so need to evaluate it
     constructor($parent, rows, columns = null, initialState = null, random = true) {
         this.margin = 0
-        this.moveDuration = 100
+        this.moveDuration = 500
         this.onChangeState = []
+        this.onInit = []
         this.$parent = $parent
         this.rows = rows
         this.columns = columns ?? rows
         this.initialState = initialState ?? Array.range(this.rows * this.columns).toShiftedLeft()
+        this.$style = document.body.appendChild(this.createStyle())
         this.$grid = this.createGrid()
         this.setRandomPicture()
         this.resizeObserver = this.getResizeObserver()
@@ -18,15 +20,16 @@ export default class Grid {
         this.pieceRatio = 1
         this.showLabels = false
         this.edit = true
+        this.tileSize = 0
 
         if (random)
-            this.setRandomState()    
+            this.setRandomState() // i cant make this async because it fucks with the order of other operations (i love programming)
         else
             this.setState(this.initialState)
 
         $parent.appendChild(this.$grid)
-        this.updateCorrectness()
         this.resizeCallback()
+        // this.updateCorrectness()
     }
 
     get blankTile() {
@@ -40,8 +43,8 @@ export default class Grid {
     createTile(id) {
         const $tile = document.createElement('div')
         $tile.tileId = id
-        $tile.style.position = 'absolute'
-        $tile.style.transform = 'translate(-50%, -50%)'
+        // $tile.style.position = 'absolute'
+        // $tile.style.transform = 'translate(-50%, -50%)'
         $tile.setAttribute('data-tile', $tile.tileId)
         $tile.$piece = null
 
@@ -51,10 +54,12 @@ export default class Grid {
     createPiece(id) {
         const $piece = document.createElement('div')
         $piece.pieceId = id
-        $piece.style.position = 'absolute'
-        $piece.style.transform = 'translate(-50%, -50%)'
-        $piece.style.cursor = 'grab'
+        // $piece.style.position = 'absolute'
+        // $piece.style.transform = 'translate(-50%, -50%)'
+        // $piece.style.cursor = 'grab'
         $piece.setAttribute('data-piece', $piece.pieceId)
+        // $piece.style.width = util.toPx(100)
+        // $piece.style.height = util.toPx(100)
         $piece.style.transition = `top ${this.moveDuration}ms linear, left ${this.moveDuration}ms linear`
         this.addPieceEvents($piece)
     
@@ -71,37 +76,32 @@ export default class Grid {
         $tile.$piece = $piece
         $piece.$tile = $tile
         $piece.setAttribute('data-in', $tile.tileId)
-    
-        $piece.style.left = $tile.offsetLeft + 'px'
-        $piece.style.top = $tile.offsetTop + 'px'
-        $piece.style.width = $tile.clientWidth * this.pieceRatio + 'px'
-        $piece.style.height = $tile.clientHeight * this.pieceRatio + 'px'
+
+        $tile.rect?.apply($piece)
+        // $piece.style.left = $tile.offsetLeft + 'px'
+        // $piece.style.top = $tile.offsetTop + 'px'
+
+        // // this looks innocent enough but when not needed, i think we should skip this step
+        // // also we need to move these declarations to a class because im pretty sure it speeds things up
+        // $piece.style.width = $tile.clientWidth * this.pieceRatio + 'px'
+        // $piece.style.height = $tile.clientHeight * this.pieceRatio + 'px'
     }
 
-    // these methods need to be rewritten for more safetly and utility
-    // make it so that if tilefrom has no 
     async moveTileToTile($tileFrom, $tileTo) {
-        if (!this.edit)
-            return
-
         $tileFrom = $tileFrom instanceof HTMLDivElement ? $tileFrom : this.grid[$tileFrom]
         $tileTo = $tileTo instanceof HTMLDivElement ? $tileTo : this.grid[$tileTo]
 
         const { $piece } = $tileFrom
 
         if ($piece === null && $tileFrom.$piece === null)
-            throw new Exception('empty tiles')
+            throw new Error('empty tiles')
         
         if ($piece === null)
             return this.moveTileToTile($tileTo, $tileFrom)
-    
-        // important change moved to createpiece
-        // $piece.style.transition = `top ${this.moveDuration}ms linear, left ${this.moveDuration}ms linear`
-        $piece.classList.toggle('is-hidden', true)
+
+        this.moving = true
         this.assignPieceToTile($piece, $tileTo)
         await new Promise(r => setTimeout(r, this.moveDuration))
-        // $piece.style.transition = ''
-        $piece.classList.toggle('is-hidden', false)
 
         this.updateCorrectness($piece)
         this.onChangeState.forEach(handler => handler(this))
@@ -171,8 +171,13 @@ export default class Grid {
 
     addPieceEvents($piece) {
         $piece.addEventListener('mousedown', eMouseDown => {
+            if (eMouseDown.buttons !== 1)
+                return
+
             eMouseDown.preventDefault()
-            $piece.style.cursor = window.document.body.style.cursor = 'grabbing'
+            $piece.style.cursor = 'grabbing'
+            // turns out this is the bottleneck so the devtools was kinda right because it was saying that mousedown event takes the longest
+            // window.document.body.style.cursor = 'grabbing'
 
             window.addEventListener('mouseup', eMouseUp => {
                 this.clickMove($piece, eMouseDown, eMouseUp) || this.swipeMove($piece, eMouseDown, eMouseUp)
@@ -197,24 +202,29 @@ export default class Grid {
         
         const { width, height } = this.$parent.getBoundingClientRect()
         const totalMargin = this.margin * 2
-        const tileSize = Math.floor(Math.min((height - totalMargin) / this.rows, (width - totalMargin) / this.columns))
-        const gridWidth = tileSize * this.columns
-        const gridHeight = tileSize * this.rows
+        this.tileSize = Math.floor(Math.min((height - totalMargin) / this.rows, (width - totalMargin) / this.columns))
+        const gridWidth = this.tileSize * this.columns
+        const gridHeight = this.tileSize * this.rows
 
         this.$grid.style.width = gridWidth + 'px'
         this.$grid.style.height = gridHeight + 'px'
-        this.grid.forEach($tile => this.adjustTile($tile, tileSize))
+        this.grid.forEach($tile => this.adjustTile($tile, this.tileSize))
 
         const scaledImgUrl = await Grid.getScaledPicture(gridWidth, gridHeight, await this.picture)
+        this.$style.piece['background-image'] = `url(${scaledImgUrl})`
+        this.$style.apply()
     
         this.pieces().forEach(async $piece => {
             const coordinates = util.getCoordinates(this.columns, this.initialState.indexOf($piece.pieceId))
-            const { x, y } = util.add(util.scale(coordinates, tileSize), tileSize * (1 - this.pieceRatio))
+            const { x, y } = util.add(util.scale(coordinates, this.tileSize), this.tileSize * (1 - this.pieceRatio))
 
-            $piece.style.backgroundImage = `url(${scaledImgUrl})`
+            // this needs to be moved to a class because it destroys devtools
+            // $piece.style.backgroundImage = `url(${scaledImgUrl})`
             $piece.style.backgroundPosition = `-${x}px -${y}px`
         })
 
+        this.$grid.classList.toggle('is-hidden', false)
+        this.onInit.forEach(handler => handler())
         // this.$parent.appendChild(this.$grid)
     }
     
@@ -226,9 +236,8 @@ export default class Grid {
 
     adjustTile($tile, tileSize) {
         const { x, y } = util.getCoordinates(this.columns, $tile.tileId)
-        $tile.style.width = $tile.style.height = tileSize + 'px'
-        $tile.style.left = x * tileSize + tileSize / 2 + 'px'
-        $tile.style.top = y * tileSize + tileSize / 2 + 'px'
+        $tile.rect = new util.Rectangle(tileSize, tileSize, y * tileSize + tileSize / 2, x * tileSize + tileSize / 2)
+        $tile.rect.apply($tile)
 
         if ($tile.$piece !== null)
             this.assignPieceToTile($tile.$piece, $tile)
@@ -238,10 +247,10 @@ export default class Grid {
         const $grid = document.createElement('div')
         $grid.addEventListener('mousemove', e => e.preventDefault())
         $grid.addEventListener('touchstart', e => e.preventDefault())
-        $grid.classList.add('grid')
+        $grid.classList.add('grid', 'is-hidden')
 
-        this.grid = Array.range(this.rows * this.columns).map(this.createTile)
-        this.grid.forEach($tile => $grid.appendChild($tile))
+        this.grid = Array.range(this.rows * this.columns).map(id => $grid.appendChild(this.createTile(id)))
+        // this.grid.forEach($tile => $grid.appendChild($tile))
 
         return $grid
     }
@@ -266,6 +275,7 @@ export default class Grid {
 
     setState(nodeOrState) {
         Node.fromNodeOrState(nodeOrState).state.forEach((pieceId, tileId) => pieceId !== 0 && this.assignOrAddPieceToTile(pieceId, this.grid[tileId]))
+        this.updateCorrectness()
     }
 
     adjacentEmpty(index) {
@@ -286,6 +296,9 @@ export default class Grid {
     }
 
     async *streamChange(arrayOrGenerator) {
+        if (!this.edit)
+            return
+
         this.edit = false
 
         for (const state of arrayOrGenerator)
@@ -295,7 +308,7 @@ export default class Grid {
     }
 
     async changeToState(arrayOrGenerator) {
-        for await (const value of this.streamChange(arrayOrGenerator))
+        for await (const _ of this.streamChange(arrayOrGenerator))
             continue
     }
 
@@ -306,7 +319,7 @@ export default class Grid {
     *shuffle() {
         yield* this.streamChange(this.getPuzzle().randomMoves())
     }
-
+    
     // could also have a method that returns a controller for the generator consumer that allows to pause etc but this is probably redunadnt and not useful
     // you can control the stream by just calling next().value
 
@@ -333,11 +346,36 @@ export default class Grid {
         })
     }
 
-    setRandomState() {
-        this.setState(EightPuzzle.random(this.columns, this.rows, this.goalState).initialState)
+    async setRandomState() {
+        this.setState((await EightPuzzle.random(this.columns, this.rows, this.goalState)).initialState)
     }
 
     solve() {
         return this.changeToNode(this.getPuzzle().tryGetSolution())
+    }
+
+    createStyle() {
+        const $style = document.createElement('style')
+        const getRules = (selector, rules) => `${selector} { ${Object.entries(rules).map(r => r.join(':')).join(';')} }`
+
+        $style.tile = {
+            position: 'absolute',
+            transform: 'translate(-50%, -50%)'
+        }
+
+        $style.piece = {
+            position: 'absolute',
+            transform: 'translate(-50%, -50%)',
+            cursor: 'grab'
+        }
+
+        $style.apply = () => $style.innerHTML = getRules('[data-tile]', $style.tile) + getRules('[data-piece]', $style.piece)
+
+        $style.apply()
+        return $style
+    }
+
+    print() {
+        util.print2dState(this.getState(), this.columns, this.rows)
     }
 }

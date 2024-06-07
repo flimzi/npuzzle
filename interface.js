@@ -115,6 +115,10 @@ export function print2dState(state, width, height = null) {
     console.log(stateTo2d(stateFormat, width, height).join('\n'), 'color: red', 'color: default')
 }
 
+export function print2dStates(states, width, height = null) {
+    states.map(state => print2dState(state, width, height))
+}
+
 export function getNode(nodeOrState) {
     if (nodeOrState instanceof Node)
         return nodeOrState
@@ -300,6 +304,48 @@ ImageData.prototype.shouldTextBeWhite = function() {
     return averageBrightness < 128
 }
 
+export function toPx(size) {
+    return size + 'px'
+}
+
 Object.prototype.toPx = function() {
-    return this + 'px'
+    return toPx(this)
+}
+
+export class Rectangle {
+    constructor(width = 0, height = 0, top = 0, left = 0) {
+        this.width = width
+        this.height = height
+        this.top = top
+        this.left = left
+    }
+
+    apply($element) {
+        $element.style.width = this.width.toPx()
+        $element.style.height = this.height.toPx()
+        $element.style.top = this.top.toPx()
+        $element.style.left = this.left.toPx()
+    }
+}
+
+export const AsyncIteratorPrototype = Object.getPrototypeOf(
+    Object.getPrototypeOf(Object.getPrototypeOf((async function* () {})())),
+);
+
+AsyncIteratorPrototype.drop = async function(count = 1) {
+    for (let i = 0; i++ < count;)
+        await this.next() // not sure if this works?
+
+    // this is so we dont need two awaits if we want to retrieve the value from generator but i might need to rethink this
+    return this.next()
+}
+
+AsyncIteratorPrototype.map = async function*(callbackfn) {
+    for await (const value of this)
+        yield callbackfn(value)
+}
+
+AsyncIteratorPrototype.consume = async function() {
+    for await (const _ of this)
+        continue
 }

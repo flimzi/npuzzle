@@ -19,6 +19,10 @@
             user-select: none;
         }
 
+        .is-grabbing {
+            cursor: grabbing !important;
+        }
+
         .grid {
             /* background-color: cadetblue; */
             position: absolute;
@@ -50,11 +54,17 @@
             /* background-color: blueviolet; */
             border: 1px dashed white;
             /* border-radius: 10%; */
+            /* position: absolute; */
             /* transform: translate(-50%, -50%); */
+            /* cursor: grab; */
+            /* flex could also make this a bit slower i assume but for now it can stay */
             display: flex;
             justify-content: center;
             align-items: center;
             color: #e76e55;
+            /* this is only for scale transform */
+            /* width: 1px; */
+            /* height: 1px; */
         }
 
         [data-piece] > span {
@@ -71,6 +81,7 @@
             margin: 0;
             padding: 0;
             display: flex;
+            overflow: hidden;
         }
         
         .background {
@@ -124,7 +135,7 @@
             height: 100%;
             width: 0;
             background-color: #209cee;
-            transition: width 100ms linear
+            /* transition: width 100ms linear */
         }
 
         .footer {
@@ -259,11 +270,15 @@
                             <input type="checkbox" id="dark" onchange="Settings.dark = this.checked" class="nes-checkbox is-dark" checked />
                             <span>Dark</span>
                         </label>
+                        <label>
+                            <input type="checkbox" id="progress_setting" onchange="Settings.progress = this.checked" class="nes-checkbox is-dark" checked />
+                            <span>Progress</span>
+                        </label>
                     </div>
                 </div>
                 <div>
                     <button type="button" onclick="Controls.shuffle()" id="shuffle" class="nes-btn is-primary">Shuffle</button>
-                    <button type="button" onclick="Controls.solveWithProgress()" id="solve" class="nes-btn is-primary">Solve</button>
+                    <button type="button" onclick="Controls.solveWithProgressAsync()" id="solve" class="nes-btn is-primary">Solve</button>
                 </div>
             </div>
         </div>
@@ -336,6 +351,23 @@
                 }
             }
 
+            static async solveWithProgressAsync() {
+                Controls.stop()
+
+                // suck my dick
+                // $solve.innerText = 'Stop'
+
+                // - manually control streamchange OR do a asynciterator extension that halts when condition is false
+                // - or maybe do a simpler solution where grid has a property or method to stop the current operation and resets it afterwards
+                // - streamChange could i think return a way to cancel it
+                // - but these solutions require that every wrapper method using steramchange has to have its parameters which is clumsy (except for the second one)
+                window.grid.getPuzzle().streamSolutionWithStatesAsync(states => {
+                    for await (const _ of window.grid.streamChange(states))
+                        if (!$solve.inProgress)
+                            return
+                })
+            }
+
             static async shuffle() {
                 const $shuffle = Controls.$shuffle
 
@@ -356,7 +388,7 @@
             }
 
             static checkSolution() {
-                Controls.setSolved(window.grid.isSolved)
+                Controls.setSolved(window.grid?.isSolved)
             }
 
             static showBubble(text) {
@@ -374,7 +406,7 @@
                 }
 
                 const hide = () => {
-                    document.body.removeChild($bubble)
+                    document.body.contains($bubble) && document.body.removeChild($bubble)
                     window.removeEventListener('mousemove', move)
                 }
 
@@ -392,6 +424,7 @@
             static get $labels() { return document.querySelectorAll('[data-piece] > span') } 
             static get $rows() { return document.querySelector('#row_select') } 
             static get $columns() { return document.querySelector('#column_select') }
+            static get $progress() { return document.querySelector('#progress_setting') }
 
             static onChangeSize = []
 
@@ -413,6 +446,8 @@
             }
 
             static set labels(on) {
+                // this is not enough because is cares dearly about if the labels are actually present
+                // we need to write to the style element directly
                 Settings.$labels.forEach(e => e.classList.toggle('is-hidden', !on))
                 Settings.$label.checked = on
             }
@@ -441,19 +476,28 @@
                 return parseInt(Settings.$columns.value)
             }
 
+            static set progress(on) {
+                Settings.$progress.checked = on
+            }
+
+            static get progress() {
+                return Settings.$progress.checked
+            }
+
             static {
                 Settings.setup(16, 16)
             }
         }
 
         window.Progress = class Progress {
+            static enabled = false
             static get $progress() { return document.querySelector('.progress') }
             static get $progressBar() { return document.querySelector('.progress-bar') }
 
-            static show(show = true) {                
+            static show(show = true) {
                 Progress.$progressBar.style.width = 0
                 Controls.setSolved(false)
-                Progress.$progress.classList.toggle('is-hidden', !show)
+                Progress.$progress.classList.toggle('is-hidden', !Settings.progress || !show)
             }
 
             static setPercentage(percentage, setSolved = true) {
@@ -465,6 +509,7 @@
         }
 
         function createGrid() {
+            const bubble = Controls.showBubble('Loading...')
             const $gridContainer = document.querySelector('.grid-container')
             
             if (window.grid) {
@@ -473,14 +518,18 @@
             }
 
             window.grid = new Grid($gridContainer, Settings.rows, Settings.columns)
+            window.grid.onInit.push(bubble.hide)
+            window.grid.onInit.push(() => Settings.labels = Settings.labels)
         }
 
-        Settings.rows = 16
-        Settings.columns = 16
+        Settings.rows = 4
+        Settings.columns = 4
+        // Settings.rows = 16
+        // Settings.columns = 16
         createGrid()
         Settings.onChangeSize.push(createGrid)
         Controls.checkSolution()
-        window.grid.onChangeState.push(Controls.checkSolution)
+        window.grid?.onChangeState.push(Controls.checkSolution)
 
         document.querySelectorAll('input[type="checkbox"]').forEach(e => {
             e.dispatchEvent(new Event('change'))
@@ -493,10 +542,21 @@
         //     e.classList.toggle('is-error', true)
         // })
         
-        window.grid = grid
         window.util = util
         window.Vector = Vector
-        window.PuzzleGrid = PuzzleGrid
+        window.EightPuzzle = EightPuzzle
+        
+        window.test = function* test(count) {
+            for (let i = 0; i < count; i++)
+                yield i
+        }
+
+        window.testAsync = async function* testAsync(count) {
+            for (let i = 0; i < count; i++) {
+                await new Promise(r => setTimeout(r, 100))
+                yield i
+            }
+        }
     </script>
 </body>
 </html>
