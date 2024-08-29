@@ -1011,11 +1011,17 @@ export class EightPuzzle {
         const queue = []
         const worker = EightPuzzle.getSolveWorker()
 
-        const processQueue = () => {
+        const processQueue = async () => {
             if (!queue.length || !window.grid.edit)
                 return
 
-            callbackfn(queue.shift()).then(processQueue)
+            // not sure if works
+            if (!await callbackfn(queue.shift())) {
+                worker.terminate()
+                return
+            }
+
+            processQueue()
         }
 
         const handleMessage = async ({ data }) => {
